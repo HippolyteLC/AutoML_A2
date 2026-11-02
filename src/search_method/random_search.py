@@ -2,8 +2,8 @@ import numpy as np
 from base import BaseSearch
 
 class RandomSearch(BaseSearch):
-    def __init__(self, seed, budget):
-        super().__init__(seed, budget)
+    def __init__(self):
+        super().__init__()
 
     def search(seed, hp_schedule, n_evals, dataset):
         records = []
@@ -14,8 +14,6 @@ class RandomSearch(BaseSearch):
             idx = rng.choice(15625)
             name = 'cifar10-valid' if dataset == 'cifar10' else dataset
             info = self.api.get_more_info(idx, name, hp=hp_schedule, is_random=True)
-            # note that CIFAR10 has some weird key issues
-            # use a debugger to get insights in the proper keys
             val_acc = info['valid-accuracy']
             if val_acc > current_best_val:
                 current_best_arch = idx

@@ -1,11 +1,9 @@
 import numpy as np
 
-from search_method import api 
-
 class BaseSearch:
-    def __init__(self, seed, api, budget):
+    def __init__(self, seed, nats_api, budget):
         self.seed = seed
-        self.api = api
+        self.nats_api = nats_api
         self.budget = budget
 
     def run(self):

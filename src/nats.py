@@ -43,6 +43,9 @@ class NATSWrapper:
         """Returns the total number of architectures in the search space."""
         return self.max_archs
 
+    def get_idx(self, arch_str):
+        return self.api.query_index_by_arch(arch_str)
+
     def evaluate_arch(self, arch_index, iepoch=None, hp=12, is_random=False, use_eval=True):
         """
         Queries the performance of a specific architecture.
@@ -74,8 +77,8 @@ class NATSWrapper:
         vals, tests = [], []
         for e in range(200):
             name = 'cifar10-valid' if self.dataset_name == 'cifar10' else self.dataset_name
-            vals.append(api.get_more_info(idx, name, hp=hp_schedule, iepoch=e, is_random=False)['valid-accuracy'])
-            tests.append(api.get_more_info(idx, self.dataset_name, hp=hp_schedule, iepoch=e, is_random=False)['test-accuracy'])
+            vals.append(self.api.get_more_info(idx, name, hp=hp_schedule, iepoch=e, is_random=False)['valid-accuracy'])
+            tests.append(self.api.get_more_info(idx, self.dataset_name, hp=hp_schedule, iepoch=e, is_random=False)['test-accuracy'])
             
         return np.array(vals), np.array(tests)
 
