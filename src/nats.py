@@ -45,7 +45,14 @@ class NATSWrapper:
 
     def get_idx(self, arch_str):
         return self.api.query_index_by_arch(arch_str)
-
+    
+    def get_arch_str(self, idx, verbose=False):
+        arch_str = self.api.arch(idx)
+        if verbose:
+            print('Architecture 0:', arch_str)
+            print('Round-trip index:', self.api.query_index_by_arch(arch_str))
+        return arch_str
+    
     def evaluate_arch(self, arch_index, iepoch=None, hp=12, is_random=False, use_eval=True):
         """
         Queries the performance of a specific architecture.
@@ -86,13 +93,6 @@ class NATSWrapper:
         """Returns training time or FLOPs info for budget tracking."""
         cost_info = self.api.get_cost_info(arch_index, self.dataset_name, hp=hp)
         return cost_info
-
-    def get_arch_str(self, idx, verbose=False):
-        arch_str = self.api.arch(idx)
-        if verbose:
-            print('Architecture 0:', arch_str)
-            print('Round-trip index:', self.api.query_index_by_arch(arch_str))
-        return arch_str
 
     def draw_arch(self, idx, save=False):
         fig, ax = plt.subplots(figsize=(6, 3))

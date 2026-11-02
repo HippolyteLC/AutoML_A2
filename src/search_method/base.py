@@ -11,6 +11,7 @@ class BaseSearch:
 
     @staticmethod
     def rng_idx(seed, max_archs):
+        # TODO: instead, provide an rng per method so it does not need to generate a new rng every time.
         rng = np.random.default_rng(seed=seed)
         idx = rng.choice(max_archs)
         return idx

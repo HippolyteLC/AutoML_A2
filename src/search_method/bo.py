@@ -56,6 +56,10 @@ class BONAS(BaseSearch):
         self.exploration_factor = exploration_factor
 
     def run(self):
+        # TODO: fix the conversion from idx to graph
+        # TODO: clean the code up so that less lines are used
+        # TODO: move helper functions to other files
+        # TODO: set a max epoch amount, or check default iepoc value in evaluator 
         # raise NotImplementedError("Should use NASBowl method to search for optimal topology.")
 
         observed_archs = []
