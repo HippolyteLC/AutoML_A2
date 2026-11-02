@@ -1,28 +1,23 @@
-import os
-import csv
-import random
+OPS = ["none", "skip_connect", "nor_conv_1x1", "nor_conv_3x3", "avg_pool_3x3"]
 
-import numpy as np
-import matplotlib.pyplot as plt
+def construct_arch(arch_vec):
+    arch_str = (
+        f"|{arch_vec[0]}~0|"
+        f"|{arch_vec[1]}~0|{arch_vec[2]}~1|"
+        f"|{arch_vec[3]}~0|{arch_vec[4]}~1|{arch_vec[5]}~2|"
+    )  
 
-from nats_bench import create
-
-
-PATH_SIMPLE = "NATS-tss-v1_0-3ffb9-simple"
-PATH_NOT_SIMPLE = "/local/.cache/torch/NATS-tss-v1_0-3ffb9.pickle.pbz2"
-
-SEARCH_SPACES = {'tss': 'NATS-Bench topology (TSS)'} # TODO: expand, there's also 
-SEARCH_SPACE = 'tss'
-FAST_MODE = False
-BENCH_PATH = os.environ.get('NATS_BENCH_PATH', PATH_NOT_SIMPLE)
-
-DATASETS = ['cifar10', 'cifar100', 'ImageNet16-120']
-DATASET = 'cifar10'
-
-if not os.path.exists(BENCH_PATH):
-    raise FileNotFoundError('Benchmark not found at {}. See section 1.'.format(BENCH_PATH))
-
-api = create(BENCH_PATH, SEARCH_SPACE, fast_mode=FAST_MODE, verbose=False)
-
-print('Search space: %s' % SEARCH_SPACES[SEARCH_SPACE])
-print('Number of architectures:', len(api))
+def construct_graph(arch_vec):
+    adj_matrix = [
+        (0, 1),
+        (0, 2),
+        (1, 2),
+        (0, 3),
+        (1, 3),
+        (2, 3),
+    ]
+    edge_labels = {
+        edge: arch_vec[idx] for
+        idx, edge in enumerate(adj_matrix)
+    }
+    return adj_matrix, edge_labels

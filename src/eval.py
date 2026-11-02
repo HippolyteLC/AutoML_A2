@@ -69,7 +69,10 @@ class Evaluator:
             architecture_index, epochs
         )
 
-        if (epochs == self.total_epochs and validation_accuracy > self.best_validation_accuracy):
+        if (
+            epochs == self.total_epochs
+            and validation_accuracy > self.best_validation_accuracy
+        ):
             self.best_validation_accuracy = validation_accuracy
             self.best_architecture = architecture_index
 
