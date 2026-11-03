@@ -22,26 +22,33 @@ class NATSWrapper:
     learning curves, and architecture information for NAS methods.
     """
     def __init__(self, dataset_name='cifar10', mode='topology', fast_mode=FAST_MODE, path=BENCH_PATH):
-        """
-        Initializes the NATS-Bench API.
-        
-        Args:
-            dataset_name (str): Dataset to use ('cifar10', 'cifar100', 'ImageNet16-120').
-            mode (str): 'topology' (tss) or 'size' (sss).
-            fast_mode (bool): Fast mode loads faster and uses less memory (ideal for laptops).
-            path (str): Optional path to the NATS-Bench .pth file if not in the default directory.
-        """
         self.dataset_name = dataset_name
-        self.mode = mode
-        
-        print(f"Loading NATS-Bench ({mode}) for dataset '{dataset_name}' (fast_mode={fast_mode})...")
-        
-        self.api = create(path, mode, fast_mode=fast_mode, verbose=False)
         self.max_archs = len(self.api)
+
+        print(f"Loading NATS-Bench ({mode}) for dataset '{dataset_name}' (fast_mode={fast_mode})...")
+        self.api = create(path, mode, fast_mode=fast_mode, verbose=False)
+
+    def update_dataset(self, ds_name):
+        self.dataset_name = ds_name
 
     def get_size(self):
         """Returns the total number of architectures in the search space."""
         return self.max_archs
+
+    def valid_split_name(self):
+        if self.dataset_name == "cifar10":
+            return f"{self.dataset_name}-valid"
+        return self.dataset_name
+
+    def get_validation_accuracy(self, idx, n_epochs, hp, is_random):
+        return self.api.get_more_info(
+            idx, self.valid_split_name(), iepoch=n_epochs - 1, hp=hp, is_random=is_random,
+        )["valid-accuracy"]
+    
+    def get_test_accuracy(self, idx, max_epochs, hp, is_random):
+        return self.api.get_more_info(
+            idx, self.dataset_name, iepoch=max_epochs-1, hp=hp, is_random=is_random,
+        )["test-accuracy"]
 
     def get_idx(self, arch_str):
         return self.api.query_index_by_arch(arch_str)
@@ -52,42 +59,14 @@ class NATSWrapper:
             print('Architecture 0:', arch_str)
             print('Round-trip index:', self.api.query_index_by_arch(arch_str))
         return arch_str
-    
-    def evaluate_arch(self, arch_index, iepoch=None, hp=12, is_random=False, use_eval=True):
-        """
-        Queries the performance of a specific architecture.
-        
-        Args:
-            arch_index (int): Index of the architecture.
-            iepoch (int, optional): Epoch up to which to evaluate (useful for Successive Halving / Learning Curves).
-            use_eval (bool): Whether to use test/validation performance.
-            
-        Returns:
-            dict: Performance metrics (accuracy, loss, latency, etc.)
-        """
-        if self.dataset_name == "cifar10":
-            name = self.dataset_name if not use_eval else f"{self.dataset_name}-valid"
-        else:
-            name = self.dataset_name
-        info = self.api.get_more_info(
-            index=arch_index, 
-            dataset=name, 
-            iepoch=iepoch,
-            hp=hp,
-            is_random=is_random,
-            )
-        cost_info = self.get_cost(arch_index=arch_index, hp=hp)
-        info["latency"] = cost_info[""]
-        return info | cost_info
 
-    def learning_curve(self, idx, hp_schedule, n_epochs):
-        vals, tests = [], []
-        for e in range(200):
-            name = 'cifar10-valid' if self.dataset_name == 'cifar10' else self.dataset_name
-            vals.append(self.api.get_more_info(idx, name, hp=hp_schedule, iepoch=e, is_random=False)['valid-accuracy'])
-            tests.append(self.api.get_more_info(idx, self.dataset_name, hp=hp_schedule, iepoch=e, is_random=False)['test-accuracy'])
-            
-        return np.array(vals)[:n_epochs], np.array(tests)[:n_epochs]
+    def learning_curve(self, idx, n_epochs, hp_schedule, is_random):
+        vals = []
+        for e in range(n_epochs):
+            vals.append(self.get_validation_accuracy(
+                idx, e+1, hp_schedule, is_random
+            ))
+        return np.array(vals)
 
     def accum_val_loss(self, idx, hp_schedule, n_epochs):
         return np.cumsum(self.learning_curve(idx, hp_schedule, n_epochs)[0])
