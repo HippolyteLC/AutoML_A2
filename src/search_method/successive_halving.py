@@ -6,66 +6,56 @@ from scipy.optimize import curve_fit
 
 import math
 
-class SuccessiveHalving(BaseSearch):
-    def __init__(self, seed, api, budget, evaluator, hp="200", max_epochs=200, n_arms=1000, mode="sh"):
-        super().__init__(seed, api, budget, evaluator, hp, max_epochs)
-        self.n_arms = n_arms
-        self.mode = mode
 
-    def __str__(self):
-        if self.mode == "sh":      
-            return f"SuccessiveHalving"
-        return f"SuccessiveHalving_{self.mode}"
+def pow3(x, c, a, alpha):
+    return c - a * (x ** (-alpha))
+
+
+class SuccessiveHalving(BaseSearch):
+    def __init__(self, seed, api, evaluator, max_epochs=200, n_arms=1000):
+        super().__init__(seed, api, evaluator, max_epochs)
+        self.n_arms = n_arms
+        self.n_iters = math.ceil(np.log2(self.n_arms)) 
 
     def compute_resource(self, current_pop_size):
-        return np.floor(self.budget/(current_pop_size * np.ceil(np.log2(self.n_arms))))
-    
-    def pow3(self, x, c, a, alpha):
-        return c - a * (x ** (-alpha))
-
-    def predict_lc(self, idx, n_epochs):
-        val_accuracies, _ = self.api.learning_curve(idx, self.hp, n_epochs)
-        ymax, ymin = np.max(val_accuracies), np.min(val_accuracies)
-
-        c, a, alpha = ymax, ymax-ymin, 0.5
-        p0 = [c, a, alpha]
-
-        low_bounds, up_bounds = [ymax, 0.0, 0.0], [1, np.inf, np.inf]
-        parameters_optimized, _ = curve_fit(
-                self.pow3, 
-                n_epochs, 
-                val_accuracies, 
-                p0=p0, 
-                bounds=(low_bounds, up_bounds)
-        )   
-        c_opt, a_opt, alpha_opt = parameters_optimized
-        return self.pow3(self.max_epochs, c_opt, a_opt, alpha_opt)
+        r_k = np.floor(self.budget/(current_pop_size * np.ceil(np.log2(self.n_arms))))
+        return int(min(self.max_epochs, max(1, r_k)))
 
     def compute_accum_val_loss(self, idx, resource_k):
         return self.api.accum_val_loss(idx, self.hp, resource_k)
 
     def run(self):
-        n_iters = math.ceil(np.log2(self.n_arms)) 
+        population = self.sample_archs(pop_size=self.n_arms)
 
-        # initialize_candidates for some r amount of epochs
-        population = self.rng_idx(pop_size=self.n_arms)
-
-        for k in range(n_iters):
+        for k in range(self.n_iters):
             resource_k = self.compute_resource(len(population))
+            scores = {self.score(idx, resource_k) for idx in population}
+            population = sorted(population, key=scores.get, reverse=True)
 
-            cut_off_point = int(np.floor(len(population)/2))
-            _ = [self.evaluator.evaluate(idx, resource_k) for idx in population]
-            if self.mode == "sh":
-                objective_func = self.compute_accum_val_loss
-            elif self.mode == "lc":
-                objective_func = self.predict_lc
-            
-            population = sorted(
-                population, 
-                key=lambda idx: objective_func(idx, resource_k), 
-                reverse=True
-            )[:cut_off_point]
+            cut_off_point = max(1, int(len(population)//2))
+            population = population[:cut_off_point]
 
+
+class LearningCurvesSH(SuccessiveHalving):
+    def predict_final_accuracy(self, val_curve):
+        x = np.arange(1, len(val_curve)+1)
+        ymax, ymin = val_curve.max(), val_curve.min()
+
+        p0 = [ymax, max(ymax-ymin, 1e-2), 0.5] # use the 1e-2 fallback in case the val curve is stagnant
+        bounds = [ymax, 0.0, 0.0], [100, np.inf, np.inf]
+        
+        try:
+            parameters_optimized, _ = curve_fit(pow3, x, val_curve, p0=p0, bounds=bounds)   
+        except Exception:
+            return val_curve[-1] 
+        c_opt, a_opt, alpha_opt = parameters_optimized
+        return pow3(x, c_opt, a_opt, alpha_opt)
+
+    def score(self, idx, epochs):
+        self.evaluator.evaluate(idx, epochs)
+        seed = self.evaluator.arch_seeds[idx]
+        curve = self.api.learning_curve(idx, epochs, hp_schedule=self.evaluator.hp, is_random=seed)
+        return self.predict_final_accuracy(curve)
 
 
         

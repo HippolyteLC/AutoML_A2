@@ -84,16 +84,3 @@ class NATSWrapper:
             plt.savefig('Architecture %d' % (idx))
         plt.show()
         # self.api.show(idx)
-
-if __name__=="__main__":
-    pass
-    # DATASETS = ['cifar10', 'cifar100', 'ImageNet16-120']
-# DATASET = 'cifar10'
-
-# if not os.path.exists(BENCH_PATH):
-#     raise FileNotFoundError('Benchmark not found at {}. See section 1.'.format(BENCH_PATH))
-
-# api = create(BENCH_PATH, SEARCH_SPACE, fast_mode=FAST_MODE, verbose=False)
-
-# print('Search space: %s' % SEARCH_SPACES[SEARCH_SPACE])
-# print('Number of architectures:', len(api))

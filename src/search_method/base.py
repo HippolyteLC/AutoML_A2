@@ -1,15 +1,15 @@
 import numpy as np
 
 class BaseSearch:
-    def __init__(self, seed, api, budget, evaluator, hp="200", max_epochs=200):
-        self.seed = seed
+    def __init__(self, seed, api, evaluator, max_epochs=200):
         self.api = api
-        self.budget = budget #set to 50k maybe? 
         self.evaluator = evaluator
-        self.hp = hp
         self.max_archs = api.get_size()
-        self.rng = np.random.default_rng(seed)
         self.max_epochs = max_epochs
+        self.rng = np.random.default_rng(seed)
+        
+    def __str__(self):
+        return type(self).__name__
 
     def rng_idx(self, pop_size=1, high=None):
         if high is None:
@@ -19,9 +19,29 @@ class BaseSearch:
         Returns pop size shaped array of rand architectures
         """
         return self.rng.integers(low=0, high=high, size=pop_size)
-    
-    def run(self):
-        raise NotImplementedError("Must return history of evals, archs, and performance metrics.")
 
+    def sample_archs(self, pop_size=1, replace=False):
+        """ 
+        Returns pop size shaped array of rand architectures
+        """        
+        return self.rng.choice(self.max_archs, size=pop_size, replace=replace)
+
+    def score(self, idx, epochs):
+        """ useful for partial epoch evals """
+        return self.evaluator.evaluate(idx, epochs)
+
+    def propose(self):
+        raise NotImplementedError
+
+    def observe(self, idx, score):
+        pass
+
+    def run(self):
+        while True:
+            idx = int(self.propose())
+            if not self.evaluator.can_afford(idx, self.max_epochs):
+                break
+            score = self.evaluator.evaluate(idx, self.max_epochs)
+            self.observe(idx, score)
     
     
