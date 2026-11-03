@@ -1,8 +1,6 @@
 import os
-import csv
-import random
 
-from utils import draw_cell
+from src.utils import draw_cell
 
 import numpy as np
 import matplotlib.pyplot as plt

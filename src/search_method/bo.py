@@ -1,4 +1,4 @@
-from base import BaseSearch
+from src.search_method.base import BaseSearch
 
 import numpy as np
 
@@ -6,7 +6,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 
 from grakel import GraphletSampling
 
-from encoding.encoding import construct_graph
+from src.encoding.encoding import construct_graph
 
 
 class BONAS(BaseSearch):

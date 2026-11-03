@@ -1,4 +1,4 @@
-from base import BaseSearch
+from src.search_method.base import BaseSearch
 
 import numpy as np
 

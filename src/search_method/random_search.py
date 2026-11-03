@@ -1,5 +1,5 @@
 import numpy as np
-from base import BaseSearch
+from src.search_method.base import BaseSearch
 
 class RandomSearch(BaseSearch):
     def __init__(self, seed, api, budget, evaluator, hp, max_epochs):
