@@ -11,10 +11,10 @@ class RandomSampling(BaseSearch):
 
     def __str__(self):
         return f"RandomSampling"
-
+    
     def run(self):
         for i in range(self.budget):
-            arch_vec = [self.rng_idx()[0] for _ in range(6)]
+            arch_vec = [self.rng_idx(high=5)[0] for _ in range(6)]
             arch_str = construct_arch(arch_vec)
             idx = self.api.get_idx(arch_str)
             self.evaluator.evaluate(idx, self.max_epochs)

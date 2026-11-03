@@ -35,7 +35,6 @@ class Evaluator:
         # leave out use eval=True
         info = self.api.evaluate_arch(
             architecture_index,
-            self.dataset,
             iepoch=epochs - 1,
             hp=self.training_schedule,
             is_random=self.is_random,
@@ -79,10 +78,7 @@ class Evaluator:
             architecture_index, epochs
         )
 
-        if (
-            epochs == self.total_epochs
-            and validation_accuracy > self.best_validation_accuracy
-        ):
+        if validation_accuracy > self.best_validation_accuracy:
             self.best_validation_accuracy = validation_accuracy
             self.best_architecture = architecture_index
 

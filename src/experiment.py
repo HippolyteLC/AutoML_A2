@@ -23,10 +23,9 @@ max_epochs = 200
 
 
 for dataset in DATASETS:
+    api = NATSWrapper(dataset_name=dataset)
 
     for seed in seeds:
-
-        api = NATSWrapper(dataset_name=DATASETS)
 
         evaluator = Evaluator(
             api,

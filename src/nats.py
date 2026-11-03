@@ -12,6 +12,8 @@ PATH_LOCAL = "/local/.cache/torch/NATS-tss-v1_0-3ffb9.pickle.pbz2"
 
 SEARCH_SPACE = 'tss'
 FAST_MODE = False
+if FAST_MODE:
+    PATH_LOCAL = PATH_SIMPLE
 BENCH_PATH = os.environ.get('NATS_BENCH_PATH', PATH_LOCAL)
 
 class NATSWrapper:

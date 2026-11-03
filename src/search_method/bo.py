@@ -6,7 +6,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 
 from grakel import GraphletSampling
 
-from src.encoding.encoding import construct_graph
+from src.encoding.encoding import idx_to_graph
 
 
 class BONAS(BaseSearch):
@@ -14,11 +14,12 @@ class BONAS(BaseSearch):
     Use a specific WL kernel to 
     
     """
-    def __init__(self, seed, api, budget, evaluator, hp="200", max_epochs=200, doe=10, exploration_factor=2, alpha=1e-2, k=4):
+    def __init__(self, seed, api, budget, evaluator, hp="200", max_epochs=200, doe=10, exploration_factor=2, alpha=1e-2, k=4, pool_size=100):
         super().__init__(seed, api, budget, evaluator, hp, max_epochs)
         self.doe = doe
         self.exploration_factor = exploration_factor
         self.alpha = alpha
+        self.pool_size = pool_size
         self.k = k # graphlet size (i.e. sub graph size)
 
     def __str__(self):
@@ -31,19 +32,25 @@ class BONAS(BaseSearch):
         observed_archs = self.rng_idx(pop_size=self.doe)
         observed_performances = [self.evaluator.evaluate(idx, self.max_epochs) for idx in observed_archs]
         
-        observed_graphs = [construct_graph(arch) for arch in observed_archs]
+        observed_graphs = [idx_to_graph(idx) for idx in observed_archs]
         graphlet_kernel = GraphletSampling(k=4, normalize=False)
         k_train = graphlet_kernel.fit_transform(observed_archs)
         gp = GaussianProcessRegressor(kernel="precomputed", alpha=self.alpha)
         gp.fit(k_train, observed_performances)
 
         while True:
-            candidates_idxs = [
-                self.rng_idx(self.seed, self.max_archs)
+            candidates_idxs = self.rng.choice(
+                [idx for idx in range(self.max_archs) if idx not in set(observed_archs)],
+                size=self.pool_size,
+                replace=False
+            )
+            
+            [
+                self.rng_idx(self.seed)
                 for _ in range(self.max_archs)
             ]
             candidates = [
-                construct_graph(idx)
+                idx_to_graph(idx)
                 for idx in candidates_idxs
                 ]
             k_candidates = graphlet_kernel.transform(candidates)
@@ -59,7 +66,7 @@ class BONAS(BaseSearch):
 
             observed_archs.append(arch_idx)
             observed_performances.append(next_cand_score)
-            observed_graphs.append(construct_graph(arch_idx))
+            observed_graphs.append(idx_to_graph(arch_idx))
             k_train = graphlet_kernel.fit_transform(observed_archs)
             gp.fit(k_train, observed_performances)
 

@@ -7,8 +7,8 @@ from scipy.optimize import curve_fit
 import math
 
 class SuccessiveHalving(BaseSearch):
-    def __init__(self, seed, api, budget, evaluator, hp="200", n_arms=1000, mode="sh"):
-        super().__init__(seed, api, budget, evaluator, hp)
+    def __init__(self, seed, api, budget, evaluator, hp="200", max_epochs=200, n_arms=1000, mode="sh"):
+        super().__init__(seed, api, budget, evaluator, hp, max_epochs)
         self.n_arms = n_arms
         self.mode = mode
 
@@ -26,9 +26,8 @@ class SuccessiveHalving(BaseSearch):
     def predict_lc(self, idx, n_epochs):
         val_accuracies, _ = self.api.learning_curve(idx, self.hp, n_epochs)
         ymax, ymin = np.max(val_accuracies), np.min(val_accuracies)
-        xmax, xmin = np.max(n_epochs), np.min(n_epochs)
 
-        c, a, alpha = ymax, ymax-ymin, (xmax-xmin)/xmax
+        c, a, alpha = ymax, ymax-ymin, 0.5
         p0 = [c, a, alpha]
 
         low_bounds, up_bounds = [ymax, 0.0, 0.0], [1, np.inf, np.inf]
