@@ -15,18 +15,20 @@ budget = 100000 #epoch evals
 
 hp = "200"
 
-seeds = [1, 2, 3, 11, 22, 50, 30, 20, 22, 34192]
+seeds = [1, 2, 3, 11, 24, 50, 30, 20, 22, 34192]
 
 DATASETS = ['cifar10', 'cifar100', 'ImageNet16-120']
 
 max_epochs = 200
 
+api = NATSWrapper()
 
 for dataset in DATASETS:
-    api = NATSWrapper(dataset_name=dataset)
+
+    api.update_dataset(dataset)
 
     for seed in seeds:
-
+        evaluator
         evaluator = Evaluator(
             api,
             dataset,
@@ -81,10 +83,10 @@ for dataset in DATASETS:
         ]
 
         for method in search_methods:
-
+            evaluator.reset()
             method.run()
 
-            fp = f"{timestamp}_{str(method)}.csv"
+            fp = f"{timestamp}_{dataset}_{str(method)}_seed{seed}.csv"
 
             evaluator.save_trace(fp)
 

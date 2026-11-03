@@ -34,7 +34,7 @@ class BONAS(BaseSearch):
         
         observed_graphs = [idx_to_graph(idx) for idx in observed_archs]
         graphlet_kernel = GraphletSampling(k=4, normalize=False)
-        k_train = graphlet_kernel.fit_transform(observed_archs)
+        k_train = graphlet_kernel.fit_transform(observed_graphs)
         gp = GaussianProcessRegressor(kernel="precomputed", alpha=self.alpha)
         gp.fit(k_train, observed_performances)
 

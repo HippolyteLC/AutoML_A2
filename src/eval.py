@@ -12,14 +12,14 @@ class Evaluator:
         api,
         dataset,
         budget_epochs,
-        total_epochs=200,
+        max_epochs=200,
         hp="200",
         seed=2026,
     ):
         self.api = api
         self.dataset = dataset
         self.budget = budget_epochs
-        self.total_epochs = total_epochs
+        self.max_epochs = max_epochs
         self.hp = hp
         self.rng = np.random.default_rng(seed)
         self.reset()
@@ -49,8 +49,8 @@ class Evaluator:
         return self.cost(arch_idx, target_epochs) <= self.remaining_budget()
 
     def evaluate(self, arch_idx, n_epochs):
-        if not 1 <= n_epochs <= self.total_epochs:
-            raise ValueError(f"epochs must be in [1, {self.total_epochs}], got {n_epochs}")
+        if not 1 <= n_epochs <= self.max_epochs:
+            raise ValueError(f"epochs must be in [1, {self.max_epochs}], got {n_epochs}")
         additional_epochs = self.cost(arch_idx, n_epochs)
 
         if additional_epochs > self.remaining_budget():
