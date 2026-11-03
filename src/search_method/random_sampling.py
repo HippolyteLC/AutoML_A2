@@ -6,19 +6,11 @@ from src.encoding.encoding import construct_arch
 
 
 class RandomSampling(BaseSearch):
-    def __init__(self, seed, api, budget, evaluator, hp="200", max_epochs=200):
-        super().__init__(seed, api, budget, evaluator, hp, max_epochs)
+    def __init__(self, seed, api, budget, evaluator):
+        super().__init__(seed, api, budget, evaluator)
 
-    def __str__(self):
-        return f"RandomSampling"
+    def propose(self):
+        operations = self.rng.integers(0, 5, size=6).tolist()
+        return self.api.get_idx(construct_arch(operations))
     
-    def run(self):
-        for i in range(self.budget):
-            arch_vec = [self.rng_idx(high=5)[0] for _ in range(6)]
-            arch_str = construct_arch(arch_vec)
-            idx = self.api.get_idx(arch_str)
-            self.evaluator.evaluate(idx, self.max_epochs)
 
-            
-            
-            
