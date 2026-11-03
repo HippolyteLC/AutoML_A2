@@ -1,7 +1,6 @@
 import re
 
 from grakel import Graph
-from grakel.kernels import WeisfeilerLehman, VertexHistogram
 
 import numpy as np
 

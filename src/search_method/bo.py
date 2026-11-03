@@ -9,7 +9,7 @@ from grakel import WeisfeilerLehman, EdgeHistogram
 from src.encoding.encoding import idx_to_graph
 
 
-class BONAS(BaseSearch):
+class NASBOWL(BaseSearch):
     """
     Use a specific WL kernel to 
     
