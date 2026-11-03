@@ -23,10 +23,10 @@ class NATSWrapper:
     """
     def __init__(self, dataset_name='cifar10', mode='topology', fast_mode=FAST_MODE, path=BENCH_PATH):
         self.dataset_name = dataset_name
-        self.max_archs = len(self.api)
 
         print(f"Loading NATS-Bench ({mode}) for dataset '{dataset_name}' (fast_mode={fast_mode})...")
         self.api = create(path, mode, fast_mode=fast_mode, verbose=False)
+        self.max_archs = len(self.api)
 
     def update_dataset(self, ds_name):
         self.dataset_name = ds_name
