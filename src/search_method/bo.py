@@ -14,9 +14,9 @@ class NASBOWL(BaseSearch):
     Use a specific WL kernel to 
     
     """
-    def __init__(self, seed, api, budget, evaluator, 
+    def __init__(self, seed, evaluator, 
                  doe=10, exploration_factor=2, alpha=1e-2, n_iter=3, pool_size=500):
-        super().__init__(seed, api, budget, evaluator)
+        super().__init__(seed, evaluator)
         self.doe = doe
         self.exploration_factor = exploration_factor
         self.alpha = alpha

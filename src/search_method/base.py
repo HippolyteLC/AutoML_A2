@@ -1,10 +1,9 @@
 import numpy as np
 
 class BaseSearch:
-    def __init__(self, seed, api, evaluator):
-        self.api = api
+    def __init__(self, seed, evaluator):
         self.evaluator = evaluator
-        self.max_archs = api.get_size()
+        self.max_archs = self.evaluator.api.get_size()
         self.max_epochs = self.evaluator.max_epochs
         self.rng = np.random.default_rng(seed)
         

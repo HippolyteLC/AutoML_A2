@@ -12,8 +12,8 @@ def pow3(x, c, a, alpha):
 
 
 class SuccessiveHalving(BaseSearch):
-    def __init__(self, seed, api, evaluator, n_arms=1000):
-        super().__init__(seed, api, evaluator)
+    def __init__(self, seed, evaluator, n_arms=1000):
+        super().__init__(seed, evaluator)
         self.n_arms = n_arms
         self.n_iters = math.ceil(np.log2(self.n_arms)) 
 
@@ -22,7 +22,7 @@ class SuccessiveHalving(BaseSearch):
         return int(min(self.max_epochs, max(1, r_k)))
 
     def compute_accum_val_loss(self, idx, resource_k):
-        return self.api.accum_val_loss(idx, self.evaluator.hp, resource_k)
+        return self.evaluator.api.accum_val_loss(idx, self.evaluator.hp, resource_k)
 
     def run(self):
         population = self.sample_archs(pop_size=self.n_arms)
@@ -54,7 +54,7 @@ class LearningCurvesSH(SuccessiveHalving):
     def score(self, idx, epochs):
         self.evaluator.evaluate(idx, epochs)
         seed = self.evaluator.arch_seeds[idx]
-        curve = self.api.learning_curve(idx, epochs, hp_schedule=self.evaluator.hp, is_random=seed)
+        curve = self.evaluator.api.learning_curve(idx, epochs, hp_schedule=self.evaluator.hp, is_random=seed)
         return self.predict_final_accuracy(curve)
 
 
