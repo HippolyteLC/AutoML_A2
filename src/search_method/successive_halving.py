@@ -18,6 +18,7 @@ class SuccessiveHalving(BaseSearch):
         self.n_iters = math.ceil(np.log2(self.n_arms)) 
 
     def compute_resource(self, current_pop_size):
+        # TODO: cross-validate this implementation with the paper (jamieson et al.)
         r_k = np.floor(self.budget/(current_pop_size * np.ceil(np.log2(self.n_arms))))
         return int(min(self.max_epochs, max(1, r_k)))
 
