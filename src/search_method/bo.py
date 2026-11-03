@@ -4,7 +4,7 @@ import numpy as np
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 
-from grakel import GraphletSampling
+from grakel import WeisfeilerLehman, EdgeHistogram
 
 from src.encoding.encoding import idx_to_graph
 
@@ -14,16 +14,44 @@ class BONAS(BaseSearch):
     Use a specific WL kernel to 
     
     """
-    def __init__(self, seed, api, budget, evaluator, hp="200", max_epochs=200, doe=10, exploration_factor=2, alpha=1e-2, k=4, pool_size=100):
-        super().__init__(seed, api, budget, evaluator, hp, max_epochs)
+    def __init__(self, seed, api, budget, evaluator, 
+                 doe=10, exploration_factor=2, alpha=1e-2, n_iter=3, pool_size=500):
+        super().__init__(seed, api, budget, evaluator)
         self.doe = doe
         self.exploration_factor = exploration_factor
         self.alpha = alpha
         self.pool_size = pool_size
-        self.k = k # graphlet size (i.e. sub graph size)
+        self.n_iter = n_iter # graphlet size (i.e. sub graph size)
 
-    def __str__(self):
-        return f"BONAS"
+        self.sampled_x = []
+        self.obj_func_evals = []
+        self.gp = GaussianProcessRegressor(
+            kernel=self.WLKernel,
+            alpha=self.alpha,
+        )
+
+    @staticmethod
+    def WLKernel(X, Y=None):
+        wl_kernel = WeisfeilerLehman(n_iter=3, base_graph_kernel=EdgeHistogram)
+        graphs = [g[0] for g in X]
+        if Y is None:
+            return wl_kernel.fit_transform(graphs)
+        else:
+            graphs_y = [g[0] for g in Y]
+            wl_kernel.fit(graphs)
+            return wl_kernel.transform(graphs_y)
+
+    def propose(self):
+        if len(self.obj_func_evals) < self.doe:
+            return self.sample_archs(1)
+        pool = self.sample_archs(self.pool_size)
+        X_train = np.array([[idx_to_graph(vec)] for vec in pool], dtype=object)
+        mu, sigma = self.gp.predict(X_train, return_std=True)
+        ucb_scores = mu + self.exploration_factor * sigma
+        return X_train[np.argmax(ucb_scores)]
+
+    def observe(self, idx, score):
+        self.sampled_x.append(self.)
 
     def run(self):
         # TODO: clean the code up so that less lines are used
@@ -33,8 +61,8 @@ class BONAS(BaseSearch):
         observed_performances = [self.evaluator.evaluate(idx, self.max_epochs) for idx in observed_archs]
         
         observed_graphs = [idx_to_graph(idx) for idx in observed_archs]
-        graphlet_kernel = GraphletSampling(k=4, normalize=False)
-        k_train = graphlet_kernel.fit_transform(observed_graphs)
+        wl_kernel = WeisfeilerLehman(n_iter=3, base_graph_kernel=EdgeHistogram)
+        k_train = wl_kernel.fit_transform(observed_graphs)
         gp = GaussianProcessRegressor(kernel="precomputed", alpha=self.alpha)
         gp.fit(k_train, observed_performances)
 
