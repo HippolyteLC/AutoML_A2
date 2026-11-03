@@ -80,14 +80,17 @@ class NATSWrapper:
         info["latency"] = cost_info[""]
         return info | cost_info
 
-    def learning_curve(self, idx, hp_schedule):
+    def learning_curve(self, idx, hp_schedule, n_epochs):
         vals, tests = [], []
         for e in range(200):
             name = 'cifar10-valid' if self.dataset_name == 'cifar10' else self.dataset_name
             vals.append(self.api.get_more_info(idx, name, hp=hp_schedule, iepoch=e, is_random=False)['valid-accuracy'])
             tests.append(self.api.get_more_info(idx, self.dataset_name, hp=hp_schedule, iepoch=e, is_random=False)['test-accuracy'])
             
-        return np.array(vals), np.array(tests)
+        return np.array(vals)[:n_epochs], np.array(tests)[:n_epochs]
+
+    def accum_val_loss(self, idx, hp_schedule, n_epochs):
+        return np.cumsum(self.learning_curve(idx, hp_schedule, n_epochs)[0])
 
     def get_cost(self, arch_index, hp):
         """Returns training time or FLOPs info for budget tracking."""
