@@ -7,6 +7,10 @@ from eval import Evaluator
 
 from nats import NATSWrapper
 
+from datetime import datetime
+
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
 budget = 100000 #epoch evals
 
 hp = "200"
@@ -28,6 +32,11 @@ search_methods = [
 
 for method in search_methods:
     method.run()
+
+
+    fp = f"{timestamp}_{str(method)}.csv"
+
+    evaluator.save_trace(fp)
 
     # log evaluator results as json
 

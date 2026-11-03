@@ -12,6 +12,11 @@ class SuccessiveHalving(BaseSearch):
         self.n_arms = n_arms
         self.mode = mode
 
+    def __str__(self):
+        if self.mode == "sh":      
+            return f"SuccessiveHalving"
+        return f"SuccessiveHalving_{self.mode}"
+
     def compute_resource(self, current_pop_size):
         return np.floor(self.budget/(current_pop_size * np.ceil(np.log2(self.n_arms))))
     

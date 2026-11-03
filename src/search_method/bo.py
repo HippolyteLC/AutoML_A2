@@ -14,31 +14,27 @@ class BONAS(BaseSearch):
     Use a specific WL kernel to 
     
     """
-
-    def __init__(self, seed, api, budget, evaluator, doe=10, exploration_factor=2):
-        super().__init__(seed, api, budget, evaluator)
+    def __init__(self, seed, api, budget, evaluator, hp="200", max_epochs=200, doe=10, exploration_factor=2, alpha=1e-2, k=4):
+        super().__init__(seed, api, budget, evaluator, hp, max_epochs)
         self.doe = doe
-        self.n_candidates
         self.exploration_factor = exploration_factor
+        self.alpha = alpha
+        self.k = k # graphlet size (i.e. sub graph size)
+
+    def __str__(self):
+        return f"BONAS"
 
     def run(self):
-        # TODO: fix the conversion from idx to graph
         # TODO: clean the code up so that less lines are used
-        # TODO: move helper functions to other files
-        # TODO: set a max epoch amount, or check default iepoc value in evaluator 
-        # raise NotImplementedError("Should use NASBowl method to search for optimal topology.")
+        # raise NotImplementedError("Should use NASBowl method to search for optimal topology.")     
 
-        observed_archs = []
-        observed_performances = []
-        for _ in range(self.doe):
-            idx = self.rng_idx(self.seed, self.max_archs)
-            observed_archs.append(idx)
-            observed_performances.append(self.evaluator.evaluate(idx, 200))        
-
+        observed_archs = self.rng_idx(pop_size=self.doe)
+        observed_performances = [self.evaluator.evaluate(idx, self.max_epochs) for idx in observed_archs]
+        
         observed_graphs = [construct_graph(arch) for arch in observed_archs]
         graphlet_kernel = GraphletSampling(k=4, normalize=False)
         k_train = graphlet_kernel.fit_transform(observed_archs)
-        gp = GaussianProcessRegressor(kernel="precomputed", alpha=1e-2)
+        gp = GaussianProcessRegressor(kernel="precomputed", alpha=self.alpha)
         gp.fit(k_train, observed_performances)
 
         while True:

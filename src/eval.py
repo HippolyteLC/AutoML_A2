@@ -1,3 +1,6 @@
+import csv
+
+
 class Evaluator:
     def __init__(
         self,
@@ -15,6 +18,13 @@ class Evaluator:
         self.training_schedule = training_schedule
         self.is_random = is_random
 
+        self.used_epochs = 0
+        self.training_progress = {}
+        self.best_architecture = None
+        self.best_validation_accuracy = -1.0
+        self.trace = []
+
+    def reset(self):
         self.used_epochs = 0
         self.training_progress = {}
         self.best_architecture = None
@@ -76,6 +86,16 @@ class Evaluator:
             self.best_validation_accuracy = validation_accuracy
             self.best_architecture = architecture_index
 
-        self.trace.append((self.used_epochs, self.best_architecture))
+        self.trace.append((self.used_epochs, self.best_architecture, self.best_validation_accuracy))
 
         return validation_accuracy
+
+    def save_trace(self, filepath="trace.csv"):
+        with open(filepath, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "epochs_used",
+                "best_architecture",
+                "best_validation_accuracy",
+            ])
+            writer.writerows(self.trace)
