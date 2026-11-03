@@ -19,20 +19,21 @@ SEEDS = [1, 2, 3, 11, 24, 50, 30, 20, 22, 34192]
 DATASETS = ['cifar10', 'cifar100', 'ImageNet16-120']
 METHODS = [NASBOWL, RandomSampling, RandomSearch, SuccessiveHalving, LearningCurvesSH]
 
-api = NATSWrapper()
-for dataset in DATASETS:
-    api.update_dataset(dataset)
-    for seed in SEEDS:
-        evaluator = Evaluator(api, dataset, BUDGET, MAX_EPOCHS, HP, seed)
-        for method in METHODS:
-            evaluator.reset()
-            method.run()
+def main():
+    api = NATSWrapper()
+    for dataset in DATASETS:
+        api.update_dataset(dataset)
+        for seed in SEEDS:
+            evaluator = Evaluator(api, dataset, BUDGET, MAX_EPOCHS, HP, seed)
+            for method_class in METHODS:
+                evaluator.reset()
+                search_method = method_class(seed, evaluator)
 
-            fp = f"{timestamp}_{dataset}_{str(method)}_seed{seed}.csv"
+                fp = f"results/{dataset}/{search_method}_seed{seed}.csv"
+                evaluator.save_trace(fp)
+                print(dataset, seed, search_method, evaluator.best_test)
 
-            evaluator.save_trace(fp)
-
-
-
+if __name__=="__main__":
+    main()
 
 
