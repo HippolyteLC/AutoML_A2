@@ -1,7 +1,21 @@
 from matplotlib.patches import Circle, FancyArrowPatch
 
 import matplotlib.pyplot as plt
+
+import pandas as pd
+
 import numpy as np
+
+import glob
+
+
+OP_COLORS = {
+    'nor_conv_3x3': '#1f77b4',
+    'nor_conv_1x1': '#2ca02c',
+    'avg_pool_3x3': '#ff7f0e',
+    'skip_connect': '#7f7f7f',
+    'none': '#bbbbbb',
+}
 
 
 def anytime_perf_plot(all_runs):
@@ -21,14 +35,33 @@ def anytime_perf_plot(all_runs):
     plt.show()
 
 
+def get_incumbent_on_grid(trace, grid):
+    positions = np.searchsorted(trace["epochs_used"].values, grid, side="right") - 1
+    values = np.full(len(grid), np.nan)
+    has_data = positions >= 0
+    values[has_data] = trace["best_test_accuracy"].values[positions[has_data]]
+    return values
 
-OP_COLORS = {
-    'nor_conv_3x3': '#1f77b4',
-    'nor_conv_1x1': '#2ca02c',
-    'avg_pool_3x3': '#ff7f0e',
-    'skip_connect': '#7f7f7f',
-    'none': '#bbbbbb',
-}
+
+def plot_anytime(dataset, methods, budget=100000):
+    grid = np.linspace(0, budget, 500)
+    for method in methods:
+        curves = []
+        for path in glob.glob(f"results/{dataset}/{method}_seed*.csv"):
+            curves.append(get_incumbent_on_grid(pd.read_csv(path), grid))
+        curves = np.array(curves)
+        mean = np.nanmean(curves, axis=0)
+        std = np.nanstd(curves, axis=0)
+        plt.plot(grid, mean, label=method)
+        plt.fill_between(grid, mean - std, mean + std, alpha=0.2)
+
+    plt.xlabel("Epochs used")
+    plt.ylabel("Test accuracy of incumbent (%)")
+    plt.title(dataset)
+    plt.legend()
+    plt.grid(alpha=0.3)
+    plt.show()
+
 
 def parse_arch(arch_str):
     """Turn '|op~0|+|op~0|op~1|+|op~0|op~1|op~2|' into a list of (src, dst, op)."""
@@ -38,6 +71,7 @@ def parse_arch(arch_str):
         for src, item in enumerate(items):
             edges.append((src, dst, item.split('~')[0]))
     return edges
+
 
 def draw_cell(arch_str, ax=None, title=None):
     if ax is None:
