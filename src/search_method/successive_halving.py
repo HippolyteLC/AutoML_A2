@@ -17,22 +17,59 @@ class SuccessiveHalving(BaseSearch):
         self.n_arms = n_arms
         self.n_iters = math.ceil(np.log2(self.n_arms)) 
 
-    def compute_resource(self, current_pop_size):
+    def _compute_resource(self, current_pop_size):
         # TODO: cross-validate this implementation with the paper (jamieson et al.)
         r_k = np.floor(self.budget/(current_pop_size * np.ceil(np.log2(self.n_arms))))
         return int(min(self.max_epochs, max(1, r_k)))
 
+    def compute_resource(self, current_pop_size, budget):
+        return min(
+            self.max_epochs,
+            max(1, int(budget/(current_pop_size*self.n_iters)))
+        )
+
     def compute_accum_val_loss(self, idx, resource_k):
         return self.evaluator.api.accum_val_loss(idx, self.evaluator.hp, resource_k)
 
+    def simulate_cost(self, own_budget):
+        trained = 0
+        used_resources = 0
+        current_pop_size = self.n_arms
+        for _ in range(self.n_iters):
+            resource = self.compute_resource(current_pop_size, own_budget)
+            used_resources += current_pop_size * max(0, resource-trained)
+            trained = max(trained, resource)
+            current_pop_size = max(1, current_pop_size // 2)
+        return used_resources 
+
+    def get_own_budget(self):
+        """
+        method to compute own budget, so that it uses same amount of evaluations as other 
+        methods (rsearch, rsampl, bo)
+        binary search algorithm (log(n)))
+        """
+        l, h = self.evaluator.budget, self.evaluator.budget*5
+        for _ in range(20):
+            m = (l+h)/2
+            if self.simulate_cost(m) <= self.evaluator.budget:
+                l = m
+            else:
+                h = m
+        return l 
+    
     def run(self):
-        population = self.sample_archs(pop_size=self.n_arms)
+        population = self.sample_archs(pop_size=self.n_arms).to_list()
+        own_budget = self.get_own_budget()
 
-        for k in range(self.n_iters):
-            resource_k = self.compute_resource(len(population))
-            scores = {self.score(idx, resource_k) for idx in population}
+        for _ in range(self.n_iters):
+            resource_k = self.compute_resource(len(population), own_budget)
+            scores = {}
+            for idx in population:
+                if not self.evaluator.can_afford(idx, resource_k):
+                    return 
+                scores[idx] = self.score(idx, resource_k)
+                
             population = sorted(population, key=scores.get, reverse=True)
-
             cut_off_point = max(1, int(len(population)//2))
             population = population[:cut_off_point]
 
