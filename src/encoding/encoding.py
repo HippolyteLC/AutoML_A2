@@ -116,10 +116,32 @@ def wl_feature_matrix(arch_vecs, n_iter=2):
     return features / norms
 
 
-def arch_to_vector(arch_str):
-    return [OPS_DICT[op] for _,_, op in parse_arch(arch_str)]
+def arch_to_vector(arch_str, verbose=False):
+    if verbose:
+        print(parse_arch(arch_str))
+    return [OPS_DICT[op] for _,_, op in parse_arch(arch_str) if len(op) > 0]
 
 
 def idx_to_graph(idx):
     return construct_graph(arch_to_vector(idx))
 
+def test_arch_round_trip():
+    arch_vec = [1, 2, 3, 4, 0, 1]
+
+    arch_str = construct_arch(arch_vec)
+    recovered_vec = arch_to_vector(arch_str, verbose=True)
+
+    assert recovered_vec == arch_vec, (
+        f"Round trip failed!\n"
+        f"Original:  {arch_vec}\n"
+        f"Recovered: {recovered_vec}\n"
+        f"Architecture: {arch_str}"
+    )
+
+    print("Round trip successful!")
+    print("Architecture:", arch_str)
+    print("Vector:", recovered_vec)
+
+
+if __name__ == "__main__":
+    test_arch_round_trip()

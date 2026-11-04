@@ -1,4 +1,4 @@
-from src.search_method.bo import NASBOWL
+from src.search_method.bo import BO, NASBOWL
 from src.search_method.random_sampling import RandomSampling
 from src.search_method.random_search import RandomSearch
 from src.search_method.successive_halving import SuccessiveHalving, LearningCurvesSH
@@ -17,7 +17,7 @@ MAX_EPOCHS = 200
 
 SEEDS = [1, 2, 3, 11, 24, 50, 30, 20, 22, 34192]
 DATASETS = ['cifar10', 'cifar100', 'ImageNet16-120']
-METHODS = [NASBOWL, RandomSampling, RandomSearch, SuccessiveHalving, LearningCurvesSH]
+METHODS = [BO, NASBOWL, RandomSampling, RandomSearch, SuccessiveHalving, LearningCurvesSH]
 
 def main():
     api = NATSWrapper()
@@ -30,7 +30,7 @@ def main():
                 search_method = method_class(seed, evaluator)
                 search_method.run()
                 fp = f"results/{dataset}/{search_method}_seed{seed}.csv"
-                evaluator.save_trace(fp)
+                # evaluator.save_trace(fp)
                 print(dataset, seed, search_method, evaluator.best_test)
 
 if __name__=="__main__":

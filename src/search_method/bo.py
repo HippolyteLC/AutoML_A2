@@ -48,7 +48,7 @@ class BO(BaseSearch):
     def unobserved_pool(self, size):
         self.mask[self.sampled_x] = False
         candidates = np.flatnonzero(self.mask)
-        return self.sample_archs(candidates=candidates, size=size, replace=False)
+        return self.sample_archs(candidates=candidates, pop_size=size, replace=False)
 
     @staticmethod
     def WLKernel(X, Y=None):
@@ -79,8 +79,8 @@ class NASBOWL(BO):
     def __init__(self, seed, evaluator, 
                  doe=10, exploration_factor=2, alpha=0.01, pool_size=500,
                  n_iter=2):
-        super().__init__(seed, evaluator, doe, exploration_factor, alpha, pool_size)
         self.n_iter = n_iter
+        super().__init__(seed, evaluator, doe, exploration_factor, alpha, pool_size)
 
     def build_feats(self):
         return wl_feature_matrix(self.arch_vechs, n_iter=self.n_iter)

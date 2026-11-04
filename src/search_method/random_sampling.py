@@ -11,6 +11,7 @@ class RandomSampling(BaseSearch):
 
     def propose(self):
         operations = self.rng.integers(0, 5, size=6).tolist()
+        assert len([op for op in operations if op < 0]) == 0, "adding invalid operation"
         return self.evaluator.api.get_idx(construct_arch(operations))
     
 
