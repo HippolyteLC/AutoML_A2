@@ -19,11 +19,13 @@ class BaseSearch:
         """
         return self.rng.integers(low=0, high=high, size=pop_size)
 
-    def sample_archs(self, pop_size=1, replace=False):
+    def sample_archs(self, pop_size=1, replace=False, candidates=None):
         """ 
         Returns pop size shaped array of rand architectures
-        """        
-        return self.rng.choice(self.max_archs, size=pop_size, replace=replace)
+        """      
+        if candidates is None:  
+            return self.rng.choice(self.max_archs, size=pop_size, replace=replace)
+        return self.rng.choice(candidates, size=pop_size, replace=replace)
 
     def score(self, idx, epochs):
         """ useful for partial epoch evals """

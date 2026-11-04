@@ -4,8 +4,6 @@ import numpy as np
 
 import os
 
-# API_SEEDS = [14098, 3421934, 340181]
-
 class Evaluator:
     def __init__(
         self,
@@ -29,11 +27,12 @@ class Evaluator:
     def reset(self):
         self.used_epochs = 0
         self.training_progress = {}
-        self.arch_seeds = {}
+        # self.arch_seeds = {}
         self.best_architecture = None
         self.best_validation_accuracy = -1.0
         self.best_test = None
         self.trace = []
+        self.validation_acc_cache = {}
 
     def api_seeds(self, idx):
         raise NotImplementedError("currently out of use")
@@ -51,6 +50,14 @@ class Evaluator:
     def can_afford(self, arch_idx, target_epochs):
         return self.cost(arch_idx, target_epochs) <= self.remaining_budget()
 
+    def valid_acc_w_cache(self, idx, n_epochs):
+        cache_key = (idx, n_epochs)
+        return self.validation_acc_cache.setdefault(
+            cache_key,
+            self.api.get_validation_accuracy(idx, n_epochs, self.hp, self.is_random)            
+        )
+
+
     def evaluate(self, arch_idx, n_epochs):
         if not 1 <= n_epochs <= self.max_epochs:
             raise ValueError(f"epochs must be in [1, {self.max_epochs}], got {n_epochs}")
@@ -64,13 +71,12 @@ class Evaluator:
         alrdy_trained_epochs = self.training_progress.get(arch_idx, 0)
         self.training_progress[arch_idx] = max(alrdy_trained_epochs, n_epochs)
 
-        seed = self.api_seeds(arch_idx)
-        validation_accuracy = self.api.get_validation_accuracy(arch_idx, n_epochs, self.hp, self.is_random)
+        validation_accuracy = self.valid_acc_w_cache(arch_idx, n_epochs)
 
         if validation_accuracy > self.best_validation_accuracy:
             self.best_validation_accuracy = validation_accuracy
             self.best_architecture = arch_idx
-            self.best_test = self.api.get_test_accuracy(arch_idx, n_epochs, self.hp, seed)
+            self.best_test = self.api.get_test_accuracy(arch_idx, n_epochs, self.hp, self.is_random)
 
         self.trace.append((self.used_epochs, self.best_architecture, self.best_validation_accuracy, self.best_test))
 
