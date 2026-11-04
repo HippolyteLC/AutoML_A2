@@ -4,14 +4,17 @@ from grakel import Graph
 
 import numpy as np
 
+from src.utils import parse_arch
+
 OPS = ["none", "skip_connect", "nor_conv_1x1", "nor_conv_3x3", "avg_pool_3x3"]
 OPS_DICT = {op: i for i, op in enumerate(OPS)}
 
 def construct_arch(arch_vec):
+    vec = [OPS[i] for i in arch_vec]
     return (
-        f"|{arch_vec[0]}~0|"
-        f"|{arch_vec[1]}~0|{arch_vec[2]}~1|"
-        f"|{arch_vec[3]}~0|{arch_vec[4]}~1|{arch_vec[5]}~2|"
+        f"|{vec[0]}~0|"
+        f"|{vec[1]}~0|{vec[2]}~1|"
+        f"|{vec[3]}~0|{vec[4]}~1|{vec[5]}~2|"
     )  
 
 def construct_graph(arch_vec):
@@ -32,12 +35,8 @@ def construct_graph(arch_vec):
     }
     return Graph(adj_matrix, edge_labels=edge_labels, graph_format="adjacency")
 
-def idx_to_vector(arch_str):
-    groups = arch_str.strip("|").split("+")
-    def clean_str(str):
-        return re.sub(r'[~ℤℕℤ]', '', str)
-    incoming_edges = [clean_str(i) for i in groups]
-    return [OPS_DICT[edge] for edge in incoming_edges]
+def arch_to_vector(arch_str):
+    return [OPS_DICT[op] for _,_, op in parse_arch(arch_str)]
 
 def idx_to_graph(idx):
-    return construct_graph(idx_to_vector(idx))
+    return construct_graph(arch_to_vector(idx))

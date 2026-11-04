@@ -68,14 +68,6 @@ class NATSWrapper:
             ))
         return np.array(vals)
 
-    def accum_val_loss(self, idx, hp_schedule, n_epochs):
-        return np.cumsum(self.learning_curve(idx, hp_schedule, n_epochs)[0])
-
-    def get_cost(self, arch_index, hp):
-        """Returns training time or FLOPs info for budget tracking."""
-        cost_info = self.api.get_cost_info(arch_index, self.dataset_name, hp=hp)
-        return cost_info
-
     def draw_arch(self, idx, save=False):
         fig, ax = plt.subplots(figsize=(6, 3))
         arch_str = self.get_arch_str(idx)

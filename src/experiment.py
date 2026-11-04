@@ -28,7 +28,7 @@ def main():
             for method_class in METHODS:
                 evaluator.reset()
                 search_method = method_class(seed, evaluator)
-
+                search_method.run()
                 fp = f"results/{dataset}/{search_method}_seed{seed}.csv"
                 evaluator.save_trace(fp)
                 print(dataset, seed, search_method, evaluator.best_test)

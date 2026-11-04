@@ -4,7 +4,7 @@ import numpy as np
 
 import os
 
-API_SEEDS = [14098, 3421934, 340181]
+# API_SEEDS = [14098, 3421934, 340181]
 
 class Evaluator:
     def __init__(
@@ -21,6 +21,8 @@ class Evaluator:
         self.budget = budget_epochs
         self.max_epochs = max_epochs
         self.hp = hp
+        if seed:
+            self.is_random = True
         self.rng = np.random.default_rng(seed)
         self.reset()
 
@@ -34,6 +36,7 @@ class Evaluator:
         self.trace = []
 
     def api_seeds(self, idx):
+        raise NotImplementedError("currently out of use")
         if idx not in self.arch_seeds:
             self.arch_seeds[idx] = int(self.rng.choice(API_SEEDS))
         return self.arch_seeds[idx]
@@ -62,12 +65,12 @@ class Evaluator:
         self.training_progress[arch_idx] = max(alrdy_trained_epochs, n_epochs)
 
         seed = self.api_seeds(arch_idx)
-        validation_accuracy = self.api.get_validation_accuracy(arch_idx, n_epochs, self.hp, seed)
+        validation_accuracy = self.api.get_validation_accuracy(arch_idx, n_epochs, self.hp, self.is_random)
 
         if validation_accuracy > self.best_validation_accuracy:
             self.best_validation_accuracy = validation_accuracy
             self.best_architecture = arch_idx
-            self.best_test = self.api.get_test_accuracy(self, arch_idx, n_epochs, self.hp, seed)
+            self.best_test = self.api.get_test_accuracy(arch_idx, n_epochs, self.hp, seed)
 
         self.trace.append((self.used_epochs, self.best_architecture, self.best_validation_accuracy, self.best_test))
 
