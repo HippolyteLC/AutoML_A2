@@ -22,8 +22,8 @@ EDGES = [
 def construct_arch(arch_vec):
     vec = [OPS[i] for i in arch_vec]
     return (
-        f"|{vec[0]}~0|"
-        f"|{vec[1]}~0|{vec[2]}~1|"
+        f"|{vec[0]}~0|+"
+        f"|{vec[1]}~0|{vec[2]}~1|+"
         f"|{vec[3]}~0|{vec[4]}~1|{vec[5]}~2|"
     )  
 

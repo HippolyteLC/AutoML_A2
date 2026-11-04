@@ -11,7 +11,7 @@ from datetime import datetime
 
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-BUDGET = 100000 #epoch evals
+BUDGET = 2000 #epoch evals
 HP = "200"
 MAX_EPOCHS = 200
 

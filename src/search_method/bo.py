@@ -40,7 +40,7 @@ class BO(BaseSearch):
         return [arch_to_vector(self.evaluator.api.get_arch_str(idx)) for idx in range(self.max_archs)]
         
     def build_feats(self):
-        return np.array([to_one_hot(arch_vec) for arch_vec in self.all])
+        return np.array([to_one_hot(arch_vec) for arch_vec in self.arch_vechs])
 
     def build_kernel(self):
         return Matern(nu=1.5) # default val from slk;learn

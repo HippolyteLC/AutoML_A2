@@ -2,9 +2,14 @@ from src.search_method.base import BaseSearch
 
 import numpy as np
 
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, OptimizeWarning
 
 import math
+
+import warnings
+
+
+warnings.filterwarnings("ignore", category=OptimizeWarning)
 
 
 def pow3(x, c, a, alpha):
@@ -12,10 +17,11 @@ def pow3(x, c, a, alpha):
 
 
 class SuccessiveHalving(BaseSearch):
-    def __init__(self, seed, evaluator, n_arms=1000):
+    def __init__(self, seed, evaluator, n_arms=1000, budget_iter=20):
         super().__init__(seed, evaluator)
         self.n_arms = n_arms
         self.n_iters = math.ceil(np.log2(self.n_arms)) 
+        self.budget_iter = budget_iter
 
     def _compute_resource(self, current_pop_size):
         # TODO: cross-validate this implementation with the paper (jamieson et al.)
@@ -49,7 +55,7 @@ class SuccessiveHalving(BaseSearch):
         binary search algorithm (log(n)))
         """
         l, h = self.evaluator.budget, self.evaluator.budget*5
-        for _ in range(20):
+        for _ in range(self.budget_iter):
             m = (l+h)/2
             if self.simulate_cost(m) <= self.evaluator.budget:
                 l = m
@@ -58,8 +64,9 @@ class SuccessiveHalving(BaseSearch):
         return l 
     
     def run(self):
-        population = self.sample_archs(pop_size=self.n_arms).to_list()
+        population = self.sample_archs(pop_size=self.n_arms).tolist()
         own_budget = self.get_own_budget()
+        
 
         for _ in range(self.n_iters):
             resource_k = self.compute_resource(len(population), own_budget)
@@ -69,7 +76,7 @@ class SuccessiveHalving(BaseSearch):
                     return 
                 scores[idx] = self.score(idx, resource_k)
                 
-            population = sorted(population, key=scores.get, reverse=True)
+            population = sorted(population, key=lambda x: scores[x], reverse=True)
             cut_off_point = max(1, int(len(population)//2))
             population = population[:cut_off_point]
 
@@ -86,8 +93,9 @@ class LearningCurvesSH(SuccessiveHalving):
             parameters_optimized, _ = curve_fit(pow3, x, val_curve, p0=p0, bounds=bounds)   
         except Exception:
             return val_curve[-1] 
+        
         c_opt, a_opt, alpha_opt = parameters_optimized
-        return pow3(x, c_opt, a_opt, alpha_opt)
+        return pow3(self.max_epochs, c_opt, a_opt, alpha_opt)
 
 
     def score(self, idx, epochs):

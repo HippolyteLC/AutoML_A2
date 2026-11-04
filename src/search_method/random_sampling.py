@@ -15,3 +15,8 @@ class RandomSampling(BaseSearch):
         return self.evaluator.api.get_idx(construct_arch(operations))
     
 
+if __name__=="__main__":
+    rng = np.random.default_rng(11)
+    
+    s = rng.integers(0, 5, size=6).tolist()
+    print(s)
