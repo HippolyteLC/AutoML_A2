@@ -52,10 +52,10 @@ class LearningCurvesSH(SuccessiveHalving):
         c_opt, a_opt, alpha_opt = parameters_optimized
         return pow3(x, c_opt, a_opt, alpha_opt)
 
+
     def score(self, idx, epochs):
         self.evaluator.evaluate(idx, epochs)
-        seed = self.evaluator.arch_seeds[idx]
-        curve = self.evaluator.api.learning_curve(idx, epochs, hp_schedule=self.evaluator.hp, is_random=seed)
+        curve = self.evaluator.get_lc(idx, epochs)
         return self.predict_final_accuracy(curve)
 
 

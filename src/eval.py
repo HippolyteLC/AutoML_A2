@@ -51,11 +51,19 @@ class Evaluator:
         return self.cost(arch_idx, target_epochs) <= self.remaining_budget()
 
     def valid_acc_w_cache(self, idx, n_epochs):
+        """
+        Ensures that evaluations for same settings reuse same randomness and saves fetching.
+        """
         cache_key = (idx, n_epochs)
         return self.validation_acc_cache.setdefault(
             cache_key,
             self.api.get_validation_accuracy(idx, n_epochs, self.hp, self.is_random)            
         )
+    
+    def get_lc(self, idx, epochs):
+        return np.array([
+            self.valid_acc_w_cache(idx, epoch) for epoch in range(1, epochs+1)
+        ])
 
 
     def evaluate(self, arch_idx, n_epochs):
