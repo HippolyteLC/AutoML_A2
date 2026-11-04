@@ -80,7 +80,7 @@ class NASBOWL(BO):
                  doe=10, exploration_factor=2, alpha=0.01, pool_size=500,
                  n_iter=2):
         super().__init__(seed, evaluator, doe, exploration_factor, alpha, pool_size)
-        self.n_iter=2
+        self.n_iter = n_iter
 
     def build_feats(self):
         return wl_feature_matrix(self.arch_vechs, n_iter=self.n_iter)
