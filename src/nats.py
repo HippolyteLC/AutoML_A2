@@ -57,8 +57,8 @@ class NATSWrapper:
         except KeyError as e:
             if verbose: 
                 print("Key error", e)
-                print("this was the input:\n",
-                    pars)
+                # print("this was the input:\n",
+                #     pars)
 
                 print("this is the unmodified output\n",
                     result)
