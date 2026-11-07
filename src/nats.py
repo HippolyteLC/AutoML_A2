@@ -40,11 +40,15 @@ class NATSWrapper:
             return f"{self.dataset_name}-valid"
         return self.dataset_name
 
-    def get_validation_accuracy(self, idx, n_epochs, hp, is_random, verbose):
-        pars = locals()
+    def get_validation_accuracy(self, idx, n_epochs, hp, is_random, verbose=False):
+        # pars = locals()
         result = self.api.get_more_info(
                 idx, self.valid_split_name(), iepoch=n_epochs - 1, hp=hp, is_random=is_random,
             )
+        if "valid-accuracy" in result:
+            return result["valid-accuracy"]
+        elif "valtest-accuracy" in result:
+            return result["valtest-accuracy"]
         try:
             # return self.api.get_more_info(
             #     idx, self.valid_split_name(), iepoch=n_epochs - 1, hp=hp, is_random=is_random,
@@ -61,9 +65,16 @@ class NATSWrapper:
             return result["valtest-accuracy"]
 
     def get_test_accuracy(self, idx, max_epochs, hp, is_random):
-        return self.api.get_more_info(
-            idx, self.dataset_name, iepoch=max_epochs-1, hp=hp, is_random=is_random,
-        )["test-accuracy"]
+        result = self.api.get_more_info(
+                idx, self.valid_split_name(), iepoch=max_epochs - 1, hp=hp, is_random=is_random,
+            )
+        if "test-accuracy" in result:
+            return result["valid-accuracy"]
+        elif "valtest-accuracy" in result:
+            return result["valtest-accuracy"]
+        # return self.api.get_more_info(
+        #     idx, self.dataset_name, iepoch=max_epochs-1, hp=hp, is_random=is_random,
+        # )["test-accuracy"]
 
     def get_idx(self, arch_str):
         return self.api.query_index_by_arch(arch_str)
