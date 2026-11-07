@@ -22,8 +22,12 @@ METHODS = [BO, NASBOWL, RandomSampling, RandomSearch, SuccessiveHalving, Learnin
 def main():
     api = NATSWrapper()
     for dataset in DATASETS:
+        if dataset == "cifar10":
+            continue
         api.update_dataset(dataset)
         for seed in SEEDS:
+            if dataset == "cifar100" and seed == 1:
+                continue
             evaluator = Evaluator(api, dataset, BUDGET, MAX_EPOCHS, HP, seed)
             for method_class in METHODS:
                 evaluator.reset()
