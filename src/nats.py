@@ -40,11 +40,26 @@ class NATSWrapper:
             return f"{self.dataset_name}-valid"
         return self.dataset_name
 
-    def get_validation_accuracy(self, idx, n_epochs, hp, is_random):
-        return self.api.get_more_info(
-            idx, self.valid_split_name(), iepoch=n_epochs - 1, hp=hp, is_random=is_random,
-        )["valid-accuracy"]
-    
+    def get_validation_accuracy(self, idx, n_epochs, hp, is_random, verbose):
+        pars = locals()
+        result = self.api.get_more_info(
+                idx, self.valid_split_name(), iepoch=n_epochs - 1, hp=hp, is_random=is_random,
+            )
+        try:
+            # return self.api.get_more_info(
+            #     idx, self.valid_split_name(), iepoch=n_epochs - 1, hp=hp, is_random=is_random,
+            # )["valid-accuracy"]
+            return result["valid-accuracy"]
+        except KeyError as e:
+            if verbose: 
+                print("Key error", e)
+                print("this was the input:\n",
+                    pars)
+
+                print("this is the unmodified output\n",
+                    result)
+            return result["valtest-accuracy"]
+
     def get_test_accuracy(self, idx, max_epochs, hp, is_random):
         return self.api.get_more_info(
             idx, self.dataset_name, iepoch=max_epochs-1, hp=hp, is_random=is_random,

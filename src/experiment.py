@@ -11,7 +11,7 @@ from datetime import datetime
 
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-BUDGET = 2000 #epoch evals
+BUDGET = 3000 #epoch evals
 HP = "200"
 MAX_EPOCHS = 200
 
@@ -21,11 +21,11 @@ METHODS = [BO, NASBOWL, RandomSampling, RandomSearch, SuccessiveHalving, Learnin
 
 def main():
     api = NATSWrapper()
-    for dataset in DATASETS:
+    for dataset in DATASETS[1:]:
         api.update_dataset(dataset)
-        for seed in SEEDS:
+        for seed in SEEDS[:2]:
             evaluator = Evaluator(api, dataset, BUDGET, MAX_EPOCHS, HP, seed)
-            for method_class in METHODS:
+            for method_class in METHODS[4:5]:
                 evaluator.reset()
                 search_method = method_class(seed, evaluator)
                 search_method.run()
