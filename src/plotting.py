@@ -27,6 +27,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -76,6 +77,15 @@ LINEWIDTHS = [2.4, 2.0, 2.2, 2.0, 2.4, 2.0, 2.2, 2.0]
 # Sample std (ddof=1) is the usual choice with few seeds. Set to 0 to match
 # the population std (np.std default) used in the earlier version of the script.
 STD_DDOF = 1
+
+# Baseline: the run-averaged *first* evaluation of BASELINE_SOURCE_METHOD, drawn as a
+# horizontal line labelled BASELINE_LABEL. Methods in EXCLUDED_METHODS are not plotted.
+# (Names are matched case-insensitively against the method folder names.)
+BASELINE_SOURCE_METHOD = "RandomSearch"
+BASELINE_LABEL = "RandomSample"
+EXCLUDED_METHODS = ("RandomSampling",)
+BASELINE_STYLE = {"color": "black", "linestyle": (0, (6, 3)), "linewidth": 1.6}  # dashed
+BASELINE_STYLE_TEST = {**BASELINE_STYLE, "linestyle": (0, (1.5, 2))}              # dotted
 
 Trace = Tuple[np.ndarray, np.ndarray]                   # (epochs, incumbent)
 TraceDict = Dict[str, Dict[str, List[Trace]]]           # dataset -> method -> traces
@@ -233,9 +243,11 @@ def extract_incumbent_traces(
     df: pd.DataFrame,
     metric: str = "validation",
     budget: Optional[float] = 100_000,
+    exclude_methods: Sequence[str] = (),
 ) -> TraceDict:
     """
     Turn the raw logs into one best-so-far step function per run.
+    Methods listed in `exclude_methods` (case-insensitive) are skipped.
 
     Returns {dataset: {method: [(epochs, incumbent), ...one per seed...]}}.
     Records beyond `budget` are dropped; accuracies are in percent.
@@ -249,9 +261,12 @@ def extract_incumbent_traces(
         raise ValueError(f"Input DataFrame is missing columns: {needed - set(df.columns)}")
 
     df = _to_percent(df)
+    excluded = {m.lower() for m in exclude_methods}
     traces: TraceDict = {}
 
     for (dataset, method, _seed), run in df.groupby(["dataset", "search_method", "seed"]):
+        if str(method).lower() in excluded:
+            continue
         # Rows where *this* metric is missing (None/NaN) are skipped for this metric
         # only; a method with no values at all simply has no trace for it.
         run = run.dropna(subset=[col]).sort_values("epochs_used")
@@ -298,6 +313,22 @@ def _mean_curve(traces: List[Trace], grid: np.ndarray) -> np.ndarray:
     return mean
 
 
+def compute_baselines(
+    traces: TraceDict,
+    source_method: str = BASELINE_SOURCE_METHOD,
+) -> Dict[str, float]:
+    """
+    Per dataset: mean over runs of the first logged incumbent of `source_method`.
+    Datasets where that method has no data are simply absent from the result.
+    """
+    baselines = {}
+    for dataset, by_method in traces.items():
+        key = next((m for m in by_method if m.lower() == source_method.lower()), None)
+        if key is not None:
+            baselines[dataset] = float(np.mean([values[0] for _, values in by_method[key]]))
+    return baselines
+
+
 def _final_scores(traces: List[Trace]) -> np.ndarray:
     """Final incumbent of every run."""
     return np.array([values[-1] for _, values in traces], dtype=float)
@@ -314,15 +345,20 @@ def plot_anytime_curves(
     budget: float = 100_000,
     num_grid_points: int = 400,
     method_styles: Optional[Dict[str, dict]] = None,
+    exclude_methods: Sequence[str] = EXCLUDED_METHODS,
     show: bool = False,
 ) -> plt.Figure:
     """
     One subplot per dataset showing the mean incumbent vs. epochs on a log-x axis.
+    The RandomSample baseline (first RandomSearch evaluation) is a horizontal line.
 
     No std bands are drawn (to avoid overlapping clutter); methods are separated
     by unique colour / linestyle / linewidth combinations.
     """
-    traces = extract_incumbent_traces(df, metric=metric, budget=budget)
+    # Baselines come from the unfiltered traces; plotted methods exclude `exclude_methods`.
+    baselines = compute_baselines(extract_incumbent_traces(df, metric=metric, budget=budget))
+    traces = extract_incumbent_traces(df, metric=metric, budget=budget,
+                                      exclude_methods=exclude_methods)
     datasets = _order_datasets(list(traces))
     methods = sorted({m for ds in datasets for m in traces[ds]})
     styles = build_method_styles(methods, method_styles)
@@ -351,6 +387,9 @@ def plot_anytime_curves(
         # Start the axis where the earliest mean curve starts (the mean is only
         # defined once every seed has logged a record), not at epoch 1.
         ax.set_xlim(first_valid_x, hi)
+        if dataset in baselines:                 # horizontal RandomSample baseline
+            ax.axhline(baselines[dataset], zorder=1.5, **BASELINE_STYLE)
+
         ax.set_title(_dataset_label(dataset))
         ax.set_xlabel("Epochs (log scale)")
         ax.set_ylabel(f"{metric.capitalize()} accuracy (%)")
@@ -358,10 +397,14 @@ def plot_anytime_curves(
         ax.grid(True, which="minor", linestyle=":", alpha=0.25)
 
     handles = [Line2D([0], [0], label=m, **styles[m]) for m in methods]
+    if baselines:
+        handles.append(Line2D([0], [0], label=BASELINE_LABEL, **BASELINE_STYLE))
+    legend_cols = min(len(handles), 5)
+    legend_rows = int(np.ceil(len(handles) / legend_cols))
     fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, 1.02),
-               ncol=min(len(methods), 5), frameon=True, handlelength=3.2,
+               ncol=legend_cols, frameon=True, handlelength=3.2,
                columnspacing=1.5)
-    fig.tight_layout(rect=[0, 0, 1, 0.90])
+    fig.tight_layout(rect=[0, 0, 1, 1 - 0.02 - 0.06 * legend_rows])  # room for legend rows
 
     _ensure_parent(output_path)
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -395,6 +438,7 @@ def plot_final_performance_bars(
     single_metric: str = "test",
     truncate_y: bool = True,
     method_styles: Optional[Dict[str, dict]] = None,
+    exclude_methods: Sequence[str] = EXCLUDED_METHODS,
     show: bool = False,
 ) -> plt.Figure:
     """
@@ -407,12 +451,23 @@ def plot_final_performance_bars(
     as wide as a single bar elsewhere. Methods with no data for a metric (e.g. no
     test accuracy logged) are marked "n/a" instead of drawing a bar.
 
+    The RandomSample baseline (first RandomSearch evaluation) is a horizontal line
+    in every panel: dashed = validation, dotted = test (CIFAR-10 shows both). With
+    `truncate_y=True` the y-axis is extended downwards so the baseline stays visible.
+
     `truncate_y=True` zooms the y-axis around the data so small gaps between
     methods are visible. State this in the paper's caption, since a truncated
     bar baseline exaggerates differences; set it to False for a zero baseline.
     """
-    val_traces = extract_incumbent_traces(df, "validation", budget)
-    test_traces = extract_incumbent_traces(df, "test", budget)
+    # Baselines come from the unfiltered traces; bars exclude `exclude_methods`.
+    val_base = compute_baselines(extract_incumbent_traces(df, "validation", budget))
+    test_base = compute_baselines(extract_incumbent_traces(df, "test", budget))
+    single_base = val_base if single_metric == "validation" else test_base
+
+    val_traces = extract_incumbent_traces(df, "validation", budget,
+                                          exclude_methods=exclude_methods)
+    test_traces = extract_incumbent_traces(df, "test", budget,
+                                           exclude_methods=exclude_methods)
     single_traces = val_traces if single_metric == "validation" else test_traces
 
     datasets = _order_datasets(list(set(val_traces) | set(test_traces)))
@@ -452,6 +507,18 @@ def plot_final_performance_bars(
             bottoms.extend(means[ok] - stds[ok])
             missing_x.extend(x[~ok] + offset)
 
+        # Baseline lines for this panel: (value, line style, legend label).
+        if paired:
+            base_lines = [(val_base.get(dataset), BASELINE_STYLE,
+                           f"{BASELINE_LABEL} (Validation)"),
+                          (test_base.get(dataset), BASELINE_STYLE_TEST,
+                           f"{BASELINE_LABEL} (Test)")]
+        else:
+            base_lines = [(single_base.get(dataset), BASELINE_STYLE, BASELINE_LABEL)]
+        base_lines = [b for b in base_lines if b[0] is not None]
+        tops.extend(b[0] for b in base_lines)        # keep baselines inside the y-range
+        bottoms.extend(b[0] for b in base_lines)
+
         title = _dataset_label(dataset)
         if not paired:
             title += f" ({single_metric.capitalize()})"
@@ -464,14 +531,14 @@ def plot_final_performance_bars(
         if not tops:                          # nothing to draw for this dataset
             continue
 
-        # The paired (CIFAR-10) panel gets extra headroom for its legend.
-        headroom = 3.0 if paired else 1.0
+        # Extra headroom for the legend (two rows in the paired CIFAR-10 panel).
+        headroom = 3.0 if paired else 2.0
         if truncate_y:
             lo, hi = min(bottoms), max(tops)
             pad = max(0.1 * (hi - lo), 0.5)
             ax.set_ylim(lo - 2 * pad, hi + headroom * pad)
         else:
-            ax.set_ylim(0, max(tops) * (1.0 + 0.05 * headroom))
+            ax.set_ylim(0, max(tops) * (1.0 + 0.07 * headroom))
 
         # Mark methods without data for this metric.
         y0, y1 = ax.get_ylim()
@@ -479,13 +546,19 @@ def plot_final_performance_bars(
             ax.text(xm, y0 + 0.02 * (y1 - y0), "n/a", rotation=90, ha="center",
                     va="bottom", fontsize=9, color="0.3")
 
-    # Solid vs. hatched legend (colour already identifies the method via x tick labels).
-    if any(_norm(ds) == "cifar10" for ds in datasets):
-        legend_ax = axes[0][[_norm(ds) == "cifar10" for ds in datasets].index(True)]
-        legend_ax.legend(handles=[
-            Patch(facecolor="white", edgecolor="black", label="Validation"),
-            Patch(facecolor="white", edgecolor="black", hatch="//", label="Test"),
-        ], loc="upper right", ncol=2, frameon=True)
+        # Baseline lines (white outline keeps them visible on dark bars) and legend.
+        handles = []
+        if paired:   # solid vs. hatched = validation vs. test (colour = method)
+            handles += [Patch(facecolor="white", edgecolor="black", label="Validation"),
+                        Patch(facecolor="white", edgecolor="black", hatch="//", label="Test")]
+        for value, style, label in base_lines:
+            ax.axhline(value, zorder=5, path_effects=[pe.withStroke(linewidth=3.4,
+                                                                    foreground="white")],
+                       **style)
+            handles.append(Line2D([0], [0], label=label, **style))
+        if handles:
+            ax.legend(handles=handles, loc="upper right", ncol=2 if paired else 1,
+                      frameon=True, fontsize=9)
 
     fig.tight_layout()
     _ensure_parent(output_path)
@@ -508,6 +581,7 @@ def compute_efficiency_csv(
     threshold: float = 0.95,
     budget: float = 100_000,
     relative_to_start: bool = False,
+    exclude_methods: Sequence[str] = (),
 ) -> pd.DataFrame:
     """
     For every (dataset, method): how many epochs until the incumbent reaches
@@ -528,7 +602,8 @@ def compute_efficiency_csv(
     if not 0 < threshold <= 1:
         raise ValueError("threshold must be in (0, 1].")
 
-    traces = extract_incumbent_traces(df, metric=metric, budget=budget)
+    traces = extract_incumbent_traces(df, metric=metric, budget=budget,
+                                      exclude_methods=exclude_methods)
     pct = int(round(threshold * 100))
     rows = []
 
