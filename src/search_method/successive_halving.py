@@ -12,8 +12,11 @@ import warnings
 warnings.filterwarnings("ignore", category=OptimizeWarning)
 
 
+
+
 def pow3(x, c, a, alpha):
     return c - a * (x ** (-alpha))
+
 
 
 class SuccessiveHalving(BaseSearch):
@@ -104,8 +107,43 @@ class LearningCurvesSH(SuccessiveHalving):
         return self.predict_final_accuracy(curve)
 
 
-        
-        
+
+def main(budget=100000, max_epochs=200, n_iters=10, n_arms=1000, budget_iter=20):
+    def compute_resource(current_pop_size, budget):
+        return min(
+            max_epochs,
+            max(1, int(budget/(current_pop_size*n_iters)))
+        )   
+
+    def simulate_cost(own_budget):
+        trained = 0
+        used_resources = 0
+        current_pop_size = n_arms
+        for _ in range(n_iters):
+            resource = compute_resource(current_pop_size, own_budget)
+            used_resources += current_pop_size * max(0, resource-trained)
+            trained = max(trained, resource)
+            current_pop_size = max(1, current_pop_size // 2)
+        return used_resources 
+
+    def get_own_budget():
+        """
+        method to compute own budget, so that it uses same amount of evaluations as other 
+        methods (rsearch, rsampl, bo)
+        binary search algorithm (log(n)))
+        """
+        l, h = budget, budget*5
+        for _ in range(budget_iter):
+            m = (l+h)/2
+            if simulate_cost(m) <= budget:
+                l = m
+            else:
+                h = m
+        return l 
+    return get_own_budget()
+
+if __name__=="__main__":
+    print(main())
 
 
             

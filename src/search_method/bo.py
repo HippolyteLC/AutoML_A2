@@ -5,17 +5,11 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, DotProduct
 
-from grakel import WeisfeilerLehman, EdgeHistogram
-
 from src.encoding.encoding import arch_to_vector, wl_feature_matrix, to_one_hot
 
 
 
 class BO(BaseSearch):
-    """
-    Use a specific WL kernel to 
-    
-    """
     def __init__(self, seed, evaluator, 
                  doe=10, exploration_factor=2, alpha=1e-2, pool_size=500):
         super().__init__(seed, evaluator)
@@ -49,18 +43,7 @@ class BO(BaseSearch):
         self.mask[self.sampled_x] = False
         candidates = np.flatnonzero(self.mask)
         return self.sample_archs(candidates=candidates, pop_size=size, replace=False)
-
-    @staticmethod
-    def WLKernel(X, Y=None):
-        wl_kernel = WeisfeilerLehman(n_iter=3, base_graph_kernel=EdgeHistogram)
-        graphs = [g[0] for g in X]
-        if Y is None:
-            return wl_kernel.fit_transform(graphs)
-        else:
-            graphs_y = [g[0] for g in Y]
-            wl_kernel.fit(graphs)
-            return wl_kernel.transform(graphs_y)
-
+    
     def propose(self):
         if len(self.obj_func_evals) < self.doe:
             return self.unobserved_pool(1)[0]

@@ -17,7 +17,7 @@ MAX_EPOCHS = 200
 
 SEEDS = [1, 2, 3, 11, 24] #, 50, 30, 20, 22, 34192]
 DATASETS = ['cifar10', 'cifar100', 'ImageNet16-120']
-METHODS = [BO, NASBOWL, RandomSampling, RandomSearch, SuccessiveHalving, LearningCurvesSH]
+METHODS = [BO, NASBOWL, RandomSearch, SuccessiveHalving, LearningCurvesSH]
 
 def main():
     api = NATSWrapper()
