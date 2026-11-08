@@ -20,6 +20,7 @@ percent internally.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import glob
 import os
 import re
@@ -107,6 +108,19 @@ def _std(x: Sequence[float]) -> float:
     return float(np.std(x, ddof=STD_DDOF)) if len(x) > STD_DDOF else 0.0
 
 
+def make_run_dir(base_dir: str = "figures", timestamp: Optional[str] = None) -> Path:
+    """Create and return <base_dir>/<YYYYmmdd_HHMMSS>/ for one analysis run."""
+    timestamp = timestamp or dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_dir = Path(base_dir) / timestamp
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
+
+
+def _ensure_parent(path: str) -> None:
+    """Make sure the folder of an output file exists."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+
 def build_method_styles(
     methods: Sequence[str],
     overrides: Optional[Dict[str, dict]] = None,
@@ -149,8 +163,8 @@ def parse_logs(results_dir: str) -> pd.DataFrame:
     if not files:
         raise FileNotFoundError(f"No CSV files found in: {results_dir}")
 
-    required = {"epochs_used", "best_validation_accuracy", "best_test_accuracy"}
-    numeric = ["epochs_used", "best_validation_accuracy", "best_test_accuracy"]
+    metric_cols = list(METRIC_COLUMNS.values())
+    numeric = ["epochs_used"] + metric_cols
     records = []
 
     for file_path in files:
@@ -168,12 +182,20 @@ def parse_logs(results_dir: str) -> pd.DataFrame:
             print(f"Error parsing {file_path}: {exc}")
             continue
 
-        if not required.issubset(run.columns):
+        if "epochs_used" not in run.columns or not set(metric_cols) & set(run.columns):
             print(f"Warning: missing required columns in {file_path}")
             continue
 
+        # A metric column may be absent or partly empty (None/NaN), e.g. the test
+        # accuracy of Successive Halving / Learning Curves. Keep those rows: each
+        # metric is cleaned separately later, so validation data is never lost
+        # just because the test value is missing.
+        for col in metric_cols:
+            if col not in run.columns:
+                run[col] = np.nan
         run[numeric] = run[numeric].apply(pd.to_numeric, errors="coerce")
-        run = run.dropna(subset=numeric)
+        run = run.dropna(subset=["epochs_used"])
+        run = run[run[metric_cols].notna().any(axis=1)]   # drop rows empty for every metric
         if run.empty:
             print(f"Warning: no valid records in {file_path}")
             continue
@@ -183,7 +205,19 @@ def parse_logs(results_dir: str) -> pd.DataFrame:
 
     if not records:
         raise ValueError("No valid experiment log records were loaded.")
-    return pd.concat(records, ignore_index=True)
+    df = pd.concat(records, ignore_index=True)
+    _report_missing(df)
+    return df
+
+
+def _report_missing(df: pd.DataFrame) -> None:
+    """Print which (dataset, method) pairs have missing metric values."""
+    for col in METRIC_COLUMNS.values():
+        frac = df[col].isna().groupby([df["dataset"], df["search_method"]]).mean()
+        frac = frac[frac > 0]
+        for (dataset, method), f in frac.items():
+            kind = "entirely missing" if f >= 1 else f"{f:.0%} of rows missing"
+            print(f"Note: {col} is {kind} for {dataset}/{method}")
 
 
 def _to_percent(df: pd.DataFrame) -> pd.DataFrame:
@@ -218,7 +252,9 @@ def extract_incumbent_traces(
     traces: TraceDict = {}
 
     for (dataset, method, _seed), run in df.groupby(["dataset", "search_method", "seed"]):
-        run = run.sort_values("epochs_used")
+        # Rows where *this* metric is missing (None/NaN) are skipped for this metric
+        # only; a method with no values at all simply has no trace for it.
+        run = run.dropna(subset=[col]).sort_values("epochs_used")
         run = run.drop_duplicates("epochs_used", keep="last")
         if budget is not None:
             run = run[run["epochs_used"] <= budget]
@@ -327,6 +363,7 @@ def plot_anytime_curves(
                columnspacing=1.5)
     fig.tight_layout(rect=[0, 0, 1, 0.90])
 
+    _ensure_parent(output_path)
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Saved anytime plot to '{output_path}'.")
     if show:
@@ -338,6 +375,18 @@ def plot_anytime_curves(
 # --------------------------------------------------------------------------- #
 # Function 2: final-performance bar chart with std whiskers
 # --------------------------------------------------------------------------- #
+
+def _group_stats(source: TraceDict, dataset: str, methods: Sequence[str]):
+    """Mean / std of the final incumbent per method; NaN where a method has no data."""
+    means = np.full(len(methods), np.nan)
+    stds = np.full(len(methods), np.nan)
+    for i, method in enumerate(methods):
+        runs = source.get(dataset, {}).get(method)
+        if runs:
+            scores = _final_scores(runs)
+            means[i], stds[i] = scores.mean(), _std(scores)
+    return means, stds
+
 
 def plot_final_performance_bars(
     df: pd.DataFrame,
@@ -354,6 +403,10 @@ def plot_final_performance_bars(
     * CIFAR-10      : grouped bars per method, Validation (solid) next to Test (hatched).
     * other datasets: one bar per method, showing `single_metric` ("test" or "validation").
 
+    All panels have the same width: in the paired CIFAR-10 panel each bar is half
+    as wide as a single bar elsewhere. Methods with no data for a metric (e.g. no
+    test accuracy logged) are marked "n/a" instead of drawing a bar.
+
     `truncate_y=True` zooms the y-axis around the data so small gaps between
     methods are visible. State this in the paper's caption, since a truncated
     bar baseline exaggerates differences; set it to False for a zero baseline.
@@ -362,42 +415,54 @@ def plot_final_performance_bars(
     test_traces = extract_incumbent_traces(df, "test", budget)
     single_traces = val_traces if single_metric == "validation" else test_traces
 
-    datasets = _order_datasets(list(val_traces))
-    methods = sorted({m for ds in datasets for m in val_traces[ds]})
+    datasets = _order_datasets(list(set(val_traces) | set(test_traces)))
+    methods = sorted({m for src in (val_traces, test_traces)
+                      for ds in src for m in src[ds]})
     styles = build_method_styles(methods, method_styles)
 
-    # CIFAR-10 has two bars per method, so give it a wider panel.
-    ratios = [1.7 if _norm(ds) == "cifar10" else 1.0 for ds in datasets]
-    fig, axes = plt.subplots(1, len(datasets), figsize=(5.0 * sum(ratios), 4.4),
-                             gridspec_kw={"width_ratios": ratios}, squeeze=False)
+    fig, axes = plt.subplots(1, len(datasets), figsize=(5.4 * len(datasets), 4.4),
+                             squeeze=False)
 
+    single_width = 0.62                       # bar width when there is one bar per method
     for ax, dataset in zip(axes[0], datasets):
-        present = [m for m in methods if m in val_traces[dataset]]
-        x = np.arange(len(present))
         paired = _norm(dataset) == "cifar10"
-        tops, bottoms = [], []
+        present = [m for m in methods
+                   if m in val_traces.get(dataset, {}) or m in test_traces.get(dataset, {})]
+        x = np.arange(len(present))
 
         if paired:
-            width = 0.38
+            width = single_width / 2          # two bars share the space of one
             groups = [("Validation", val_traces, -width / 2, None),
                       ("Test", test_traces, +width / 2, "//")]
         else:
-            width = 0.62
+            width = single_width
             groups = [(single_metric.capitalize(), single_traces, 0.0, None)]
 
+        tops, bottoms, missing_x = [], [], []
         for _label, source, offset, hatch in groups:
-            scores = [_final_scores(source[dataset][m]) for m in present]
-            means = np.array([s.mean() for s in scores])
-            stds = np.array([_std(s) for s in scores])
-
-            ax.bar(x + offset, means, width,
-                   color=[styles[m]["color"] for m in present],
+            means, stds = _group_stats(source, dataset, present)
+            ok = np.isfinite(means)
+            ax.bar(x[ok] + offset, means[ok], width,
+                   color=[styles[m]["color"] for m, k in zip(present, ok) if k],
                    edgecolor="black", linewidth=0.8, hatch=hatch, zorder=3)
-            ax.errorbar(x + offset, means, yerr=stds, fmt="none",
-                        ecolor="black", elinewidth=1.3, capsize=3.5,
-                        capthick=1.3, zorder=4)
-            tops.append((means + stds).max())
-            bottoms.append((means - stds).min())
+            ax.errorbar(x[ok] + offset, means[ok], yerr=stds[ok], fmt="none",
+                        ecolor="black", elinewidth=1.3, capsize=3, capthick=1.3,
+                        zorder=4)
+            tops.extend(means[ok] + stds[ok])
+            bottoms.extend(means[ok] - stds[ok])
+            missing_x.extend(x[~ok] + offset)
+
+        title = _dataset_label(dataset)
+        if not paired:
+            title += f" ({single_metric.capitalize()})"
+        ax.set_title(title)
+        ax.set_ylabel("Accuracy (%)")
+        ax.set_xticks(x)
+        ax.set_xticklabels(present, rotation=30, ha="right")
+        ax.grid(True, axis="y", linestyle="--", alpha=0.6, zorder=0)
+        ax.grid(False, axis="x")
+        if not tops:                          # nothing to draw for this dataset
+            continue
 
         # The paired (CIFAR-10) panel gets extra headroom for its legend.
         headroom = 3.0 if paired else 1.0
@@ -408,15 +473,11 @@ def plot_final_performance_bars(
         else:
             ax.set_ylim(0, max(tops) * (1.0 + 0.05 * headroom))
 
-        ax.set_xticks(x)
-        ax.set_xticklabels(present, rotation=30, ha="right")
-        title = _dataset_label(dataset)
-        if not paired:
-            title += f" ({single_metric.capitalize()})"
-        ax.set_title(title)
-        ax.set_ylabel("Accuracy (%)")
-        ax.grid(True, axis="y", linestyle="--", alpha=0.6, zorder=0)
-        ax.grid(False, axis="x")
+        # Mark methods without data for this metric.
+        y0, y1 = ax.get_ylim()
+        for xm in missing_x:
+            ax.text(xm, y0 + 0.02 * (y1 - y0), "n/a", rotation=90, ha="center",
+                    va="bottom", fontsize=9, color="0.3")
 
     # Solid vs. hatched legend (colour already identifies the method via x tick labels).
     if any(_norm(ds) == "cifar10" for ds in datasets):
@@ -427,6 +488,7 @@ def plot_final_performance_bars(
         ], loc="upper right", ncol=2, frameon=True)
 
     fig.tight_layout()
+    _ensure_parent(output_path)
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Saved final-performance bar chart to '{output_path}'.")
     if show:
@@ -513,6 +575,7 @@ def compute_efficiency_csv(
 
     out = pd.DataFrame(rows)
     # utf-8-sig so Excel displays the "±" correctly
+    _ensure_parent(output_path)
     out.to_csv(output_path, index=False, encoding="utf-8-sig")
     print(f"Saved efficiency summary to '{output_path}'.")
     return out
@@ -530,8 +593,9 @@ def main() -> None:
     parser.add_argument("--budget", type=float, default=100_000)
     args = parser.parse_args()
 
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    # Every run writes all its outputs into its own  <out_dir>/<YYYYmmdd_HHMMSS>/  folder.
+    out_dir = make_run_dir(args.out_dir)
+    print(f"Writing outputs to '{out_dir}'.")
 
     df = parse_logs(args.results_dir)
 

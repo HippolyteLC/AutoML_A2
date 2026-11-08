@@ -6,5 +6,5 @@ src/search_method/__pycache__/
 src/encoding/__pycache__/
 
 results/
-*.pdf
+# *.pdf
 # */*.pdf
