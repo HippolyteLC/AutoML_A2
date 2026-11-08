@@ -5,8 +5,8 @@ Pipeline
 --------
     parse_logs()                    -> long-format DataFrame (one row per logged step)
     extract_incumbent_traces()      -> per-run best-so-far step functions
-    plot_anytime_curves()           -> Output 1: log-x anytime curves (PDF)
-    plot_final_performance_bars()   -> Output 2: final-score bars with std whiskers (PDF)
+    plot_anytime_curves()           -> Output 1: log-x anytime curves + RandomSample line (PDF)
+    plot_final_performance_bars()   -> Output 2: final-score bars (incl. RandomSample bar) (PDF)
     compute_efficiency_csv()        -> Output 3: epochs-to-95%-of-final table (CSV)
 
 Expected input DataFrame columns (this is what `parse_logs` produces):
@@ -27,7 +27,6 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
-import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -78,14 +77,15 @@ LINEWIDTHS = [2.4, 2.0, 2.2, 2.0, 2.4, 2.0, 2.2, 2.0]
 # the population std (np.std default) used in the earlier version of the script.
 STD_DDOF = 1
 
-# Baseline: the run-averaged *first* evaluation of BASELINE_SOURCE_METHOD, drawn as a
-# horizontal line labelled BASELINE_LABEL. Methods in EXCLUDED_METHODS are not plotted.
+# "RandomSample" baseline = the *first* evaluation of BASELINE_SOURCE_METHOD, aggregated
+# over runs (mean and std). Anytime plots draw its mean as a horizontal line; bar charts
+# draw it as a regular bar with a std whisker. Methods in EXCLUDED_METHODS are not plotted.
 # (Names are matched case-insensitively against the method folder names.)
 BASELINE_SOURCE_METHOD = "RandomSearch"
 BASELINE_LABEL = "RandomSample"
 EXCLUDED_METHODS = ("RandomSampling",)
-BASELINE_STYLE = {"color": "black", "linestyle": (0, (6, 3)), "linewidth": 1.6}  # dashed
-BASELINE_STYLE_TEST = {**BASELINE_STYLE, "linestyle": (0, (1.5, 2))}              # dotted
+BASELINE_STYLE = {"color": "black", "linestyle": (0, (6, 3)), "linewidth": 1.6}  # anytime line
+BASELINE_BAR_COLOR = "#D9D9D9"                                                    # bar chart
 
 Trace = Tuple[np.ndarray, np.ndarray]                   # (epochs, incumbent)
 TraceDict = Dict[str, Dict[str, List[Trace]]]           # dataset -> method -> traces
@@ -316,16 +316,17 @@ def _mean_curve(traces: List[Trace], grid: np.ndarray) -> np.ndarray:
 def compute_baselines(
     traces: TraceDict,
     source_method: str = BASELINE_SOURCE_METHOD,
-) -> Dict[str, float]:
+) -> Dict[str, Tuple[float, float]]:
     """
-    Per dataset: mean over runs of the first logged incumbent of `source_method`.
+    Per dataset: (mean, std) over runs of the first logged incumbent of `source_method`.
     Datasets where that method has no data are simply absent from the result.
     """
     baselines = {}
     for dataset, by_method in traces.items():
         key = next((m for m in by_method if m.lower() == source_method.lower()), None)
         if key is not None:
-            baselines[dataset] = float(np.mean([values[0] for _, values in by_method[key]]))
+            first_values = [values[0] for _, values in by_method[key]]
+            baselines[dataset] = (float(np.mean(first_values)), _std(first_values))
     return baselines
 
 
@@ -388,7 +389,7 @@ def plot_anytime_curves(
         # defined once every seed has logged a record), not at epoch 1.
         ax.set_xlim(first_valid_x, hi)
         if dataset in baselines:                 # horizontal RandomSample baseline
-            ax.axhline(baselines[dataset], zorder=1.5, **BASELINE_STYLE)
+            ax.axhline(baselines[dataset][0], zorder=1.5, **BASELINE_STYLE)
 
         ax.set_title(_dataset_label(dataset))
         ax.set_xlabel("Epochs (log scale)")
@@ -447,19 +448,19 @@ def plot_final_performance_bars(
     * CIFAR-10      : grouped bars per method, Validation (solid) next to Test (hatched).
     * other datasets: one bar per method, showing `single_metric` ("test" or "validation").
 
+    The first bar of every panel is the RandomSample baseline: the first evaluation of
+    RandomSearch, as mean +/- std over runs, drawn like any other method (light grey).
+
     All panels have the same width: in the paired CIFAR-10 panel each bar is half
     as wide as a single bar elsewhere. Methods with no data for a metric (e.g. no
     test accuracy logged) are marked "n/a" instead of drawing a bar.
 
-    The RandomSample baseline (first RandomSearch evaluation) is a horizontal line
-    in every panel: dashed = validation, dotted = test (CIFAR-10 shows both). With
-    `truncate_y=True` the y-axis is extended downwards so the baseline stays visible.
-
     `truncate_y=True` zooms the y-axis around the data so small gaps between
-    methods are visible. State this in the paper's caption, since a truncated
-    bar baseline exaggerates differences; set it to False for a zero baseline.
+    methods are visible. Because the RandomSample bar is low, the axis extends down
+    to it. State the truncated axis in the paper's caption; set `truncate_y=False`
+    for a zero baseline.
     """
-    # Baselines come from the unfiltered traces; bars exclude `exclude_methods`.
+    # Baseline stats come from the unfiltered traces; bars exclude `exclude_methods`.
     val_base = compute_baselines(extract_incumbent_traces(df, "validation", budget))
     test_base = compute_baselines(extract_incumbent_traces(df, "test", budget))
     single_base = val_base if single_metric == "validation" else test_base
@@ -483,22 +484,31 @@ def plot_final_performance_bars(
         paired = _norm(dataset) == "cifar10"
         present = [m for m in methods
                    if m in val_traces.get(dataset, {}) or m in test_traces.get(dataset, {})]
-        x = np.arange(len(present))
+
+        # RandomSample is the first bar, if RandomSearch data exists for this dataset.
+        has_base = (dataset in val_base or dataset in test_base) if paired \
+            else dataset in single_base
+        names = ([BASELINE_LABEL] if has_base else []) + present
+        x = np.arange(len(names))
 
         if paired:
             width = single_width / 2          # two bars share the space of one
-            groups = [("Validation", val_traces, -width / 2, None),
-                      ("Test", test_traces, +width / 2, "//")]
+            groups = [("Validation", val_traces, val_base, -width / 2, None),
+                      ("Test", test_traces, test_base, +width / 2, "//")]
         else:
             width = single_width
-            groups = [(single_metric.capitalize(), single_traces, 0.0, None)]
+            groups = [(single_metric.capitalize(), single_traces, single_base, 0.0, None)]
 
         tops, bottoms, missing_x = [], [], []
-        for _label, source, offset, hatch in groups:
+        for _label, source, base, offset, hatch in groups:
             means, stds = _group_stats(source, dataset, present)
+            if has_base:                      # prepend the baseline's mean / std
+                b_mean, b_std = base.get(dataset, (np.nan, np.nan))
+                means, stds = np.r_[b_mean, means], np.r_[b_std, stds]
             ok = np.isfinite(means)
-            ax.bar(x[ok] + offset, means[ok], width,
-                   color=[styles[m]["color"] for m, k in zip(present, ok) if k],
+            colors = [BASELINE_BAR_COLOR if n == BASELINE_LABEL else styles[n]["color"]
+                      for n, k in zip(names, ok) if k]
+            ax.bar(x[ok] + offset, means[ok], width, color=colors,
                    edgecolor="black", linewidth=0.8, hatch=hatch, zorder=3)
             ax.errorbar(x[ok] + offset, means[ok], yerr=stds[ok], fmt="none",
                         ecolor="black", elinewidth=1.3, capsize=3, capthick=1.3,
@@ -507,38 +517,26 @@ def plot_final_performance_bars(
             bottoms.extend(means[ok] - stds[ok])
             missing_x.extend(x[~ok] + offset)
 
-        # Baseline lines for this panel: (value, line style, legend label).
-        if paired:
-            base_lines = [(val_base.get(dataset), BASELINE_STYLE,
-                           f"{BASELINE_LABEL} (Validation)"),
-                          (test_base.get(dataset), BASELINE_STYLE_TEST,
-                           f"{BASELINE_LABEL} (Test)")]
-        else:
-            base_lines = [(single_base.get(dataset), BASELINE_STYLE, BASELINE_LABEL)]
-        base_lines = [b for b in base_lines if b[0] is not None]
-        tops.extend(b[0] for b in base_lines)        # keep baselines inside the y-range
-        bottoms.extend(b[0] for b in base_lines)
-
         title = _dataset_label(dataset)
         if not paired:
             title += f" ({single_metric.capitalize()})"
         ax.set_title(title)
         ax.set_ylabel("Accuracy (%)")
         ax.set_xticks(x)
-        ax.set_xticklabels(present, rotation=30, ha="right")
+        ax.set_xticklabels(names, rotation=30, ha="right")
         ax.grid(True, axis="y", linestyle="--", alpha=0.6, zorder=0)
         ax.grid(False, axis="x")
         if not tops:                          # nothing to draw for this dataset
             continue
 
-        # Extra headroom for the legend (two rows in the paired CIFAR-10 panel).
-        headroom = 3.0 if paired else 2.0
+        # The paired (CIFAR-10) panel gets extra headroom for its legend.
+        headroom = 3.0 if paired else 1.0
         if truncate_y:
             lo, hi = min(bottoms), max(tops)
             pad = max(0.1 * (hi - lo), 0.5)
             ax.set_ylim(lo - 2 * pad, hi + headroom * pad)
         else:
-            ax.set_ylim(0, max(tops) * (1.0 + 0.07 * headroom))
+            ax.set_ylim(0, max(tops) * (1.0 + 0.05 * headroom))
 
         # Mark methods without data for this metric.
         y0, y1 = ax.get_ylim()
@@ -546,19 +544,12 @@ def plot_final_performance_bars(
             ax.text(xm, y0 + 0.02 * (y1 - y0), "n/a", rotation=90, ha="center",
                     va="bottom", fontsize=9, color="0.3")
 
-        # Baseline lines (white outline keeps them visible on dark bars) and legend.
-        handles = []
-        if paired:   # solid vs. hatched = validation vs. test (colour = method)
-            handles += [Patch(facecolor="white", edgecolor="black", label="Validation"),
-                        Patch(facecolor="white", edgecolor="black", hatch="//", label="Test")]
-        for value, style, label in base_lines:
-            ax.axhline(value, zorder=5, path_effects=[pe.withStroke(linewidth=3.4,
-                                                                    foreground="white")],
-                       **style)
-            handles.append(Line2D([0], [0], label=label, **style))
-        if handles:
-            ax.legend(handles=handles, loc="upper right", ncol=2 if paired else 1,
-                      frameon=True, fontsize=9)
+        # Solid vs. hatched legend (colour identifies the method via the x tick labels).
+        if paired:
+            ax.legend(handles=[
+                Patch(facecolor="white", edgecolor="black", label="Validation"),
+                Patch(facecolor="white", edgecolor="black", hatch="//", label="Test"),
+            ], loc="upper right", ncol=2, frameon=True)
 
     fig.tight_layout()
     _ensure_parent(output_path)
