@@ -518,8 +518,8 @@ def plot_final_performance_bars(
             missing_x.extend(x[~ok] + offset)
 
         title = _dataset_label(dataset)
-        if not paired:
-            title += f" ({single_metric.capitalize()})"
+        # if not paired:
+        #     title += f" ({single_metric.capitalize()})"
         ax.set_title(title)
         ax.set_ylabel("Accuracy (%)")
         ax.set_xticks(x)
