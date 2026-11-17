@@ -1,0 +1,19 @@
+﻿dataset,method,metric,num_runs,final_mean,final_std,final_performance
+CIFAR-10,RandomSample,validation,5,84.5904,7.7394,84.59 ± 7.74
+CIFAR-10,BO,validation,5,91.5304,0.2268,91.53 ± 0.23
+CIFAR-10,LearningCurvesSH,validation,5,91.4696,0.0838,91.47 ± 0.08
+CIFAR-10,NASBOWL,validation,5,91.3952,0.3339,91.40 ± 0.33
+CIFAR-10,RandomSearch,validation,5,91.3784,0.2801,91.38 ± 0.28
+CIFAR-10,SuccessiveHalving,validation,5,91.4672,0.0515,91.47 ± 0.05
+CIFAR-100,RandomSample,validation,5,61.664,9.5061,61.66 ± 9.51
+CIFAR-100,BO,validation,5,73.68,0.0894,73.68 ± 0.09
+CIFAR-100,LearningCurvesSH,validation,5,72.788,0.3261,72.79 ± 0.33
+CIFAR-100,NASBOWL,validation,5,73.66,0.06,73.66 ± 0.06
+CIFAR-100,RandomSearch,validation,5,72.808,0.5343,72.81 ± 0.53
+CIFAR-100,SuccessiveHalving,validation,5,72.856,0.3562,72.86 ± 0.36
+ImageNet16-120,RandomSample,validation,5,33.98,11.0674,33.98 ± 11.07
+ImageNet16-120,BO,validation,5,47.1667,0.2261,47.17 ± 0.23
+ImageNet16-120,LearningCurvesSH,validation,5,46.7033,0.4321,46.70 ± 0.43
+ImageNet16-120,NASBOWL,validation,5,47.2333,0.1795,47.23 ± 0.18
+ImageNet16-120,RandomSearch,validation,5,46.3867,0.6117,46.39 ± 0.61
+ImageNet16-120,SuccessiveHalving,validation,5,46.5633,0.2293,46.56 ± 0.23
